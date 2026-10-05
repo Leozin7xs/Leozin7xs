@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <!-- Versão única da aplicação: aparece na interface e em todos os registros de log. -->
+    <Version>0.1.0</Version>
+    <Company>Grupo WP</Company>
+    <Product>WP Support Tools</Product>
+    <Copyright>© Grupo WP</Copyright>
+
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Permite compilar (não executar) os projetos Windows em máquinas Linux/macOS, ex.: CI. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+</Project>
