@@ -4,48 +4,135 @@ namespace WPSupportTools.Core.Execution;
 
 /// <summary>
 /// Executa uma sequência de forma determinística: etapas na ordem definida, uma de cada vez.
-/// Na primeira falha a execução para e as etapas restantes são marcadas como não executadas.
-/// Não há novas tentativas nem ações alternativas.
+/// <list type="bullet">
+///   <item>Etapas cuja condição não se aplica aparecem como "não necessárias".</item>
+///   <item>Na primeira falha a execução para; as etapas restantes não são executadas.</item>
+///   <item>Etapas de administrador são enviadas, em bloco, ao <see cref="IElevatedStepRunner"/>
+///         (uma única confirmação do UAC por bloco). As demais rodam no próprio processo.</item>
+///   <item>Não há novas tentativas nem ações alternativas.</item>
+/// </list>
 /// </summary>
 public sealed class SequenceRunner
 {
     private readonly bool _isElevated;
+    private readonly IElevatedStepRunner? _elevatedRunner;
 
-    public SequenceRunner() : this(Environment.IsPrivilegedProcess)
+    public SequenceRunner(IElevatedStepRunner? elevatedRunner = null)
+        : this(Environment.IsPrivilegedProcess, elevatedRunner)
     {
     }
 
-    internal SequenceRunner(bool isElevated) => _isElevated = isElevated;
+    internal SequenceRunner(bool isElevated, IElevatedStepRunner? elevatedRunner = null)
+    {
+        _isElevated = isElevated;
+        _elevatedRunner = elevatedRunner;
+    }
 
     public async Task<SequenceReport> RunAsync(
         MaintenanceSequence sequence, IRunEventSink sink, CancellationToken cancellationToken = default)
     {
         var context = new ProcedureContext(sink, _isElevated);
-        var results = new List<ProcedureResult>(sequence.Steps.Count);
+        var results = new ProcedureResult[sequence.Steps.Count];
         int? failedIndex = null;
 
-        for (var i = 0; i < sequence.Steps.Count; i++)
+        void Finish(int index, ProcedureResult result)
+        {
+            results[index] = result;
+            sink.Publish(new StepFinishedEvent(index, sequence.Steps[index].Id, result));
+            if (!result.IsSuccessful)
+                failedIndex ??= index;
+        }
+
+        for (var i = 0; i < sequence.Steps.Count;)
         {
             var step = sequence.Steps[i];
 
             if (failedIndex is not null)
             {
-                var skipped = ProcedureResult.Skipped("Não executado porque uma etapa anterior falhou.");
-                results.Add(skipped);
-                sink.Publish(new StepFinishedEvent(i, step.Id, skipped));
+                Finish(i++, ProcedureResult.Skipped("Não executado porque uma etapa anterior falhou."));
+                continue;
+            }
+
+            if (step.WhyNotNeeded(context.State) is { } reason)
+            {
+                Finish(i++, ProcedureResult.NotNeeded(reason));
+                continue;
+            }
+
+            if (step.RequiresElevation && !_isElevated && _elevatedRunner is not null)
+            {
+                var block = ElevatedBlockFrom(sequence, i, context.State);
+                var blockResults = await _elevatedRunner.RunAsync(sequence, block, sink, cancellationToken);
+                for (var k = 0; k < block.Count; k++)
+                {
+                    var result = k < blockResults.Count
+                        ? blockResults[k]
+                        : ProcedureResult.Fail("O processo de administrador não informou o resultado.");
+                    results[block[k]] = result;
+                    if (!result.IsSuccessful)
+                        failedIndex ??= block[k];
+                }
+
+                i = block[^1] + 1;
                 continue;
             }
 
             sink.Publish(new StepStartedEvent(i, step.Id));
-            var result = await ExecuteStepAsync(step, context, cancellationToken);
-            results.Add(result);
-            sink.Publish(new StepFinishedEvent(i, step.Id, result));
-
-            if (!result.IsSuccessful)
-                failedIndex = i;
+            Finish(i, await ExecuteStepAsync(step, context, cancellationToken));
+            i++;
         }
 
         return new SequenceReport(sequence.Id, Summarize(results, failedIndex), results, failedIndex);
+    }
+
+    /// <summary>
+    /// Usado pelo processo elevado: executa somente os índices recebidos, na ordem.
+    /// Na primeira falha, os seguintes são marcados como não executados.
+    /// </summary>
+    public async Task<IReadOnlyList<ProcedureResult>> RunStepsAsync(
+        MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IRunEventSink sink,
+        CancellationToken cancellationToken = default)
+    {
+        var context = new ProcedureContext(sink, _isElevated);
+        var results = new List<ProcedureResult>(stepIndices.Count);
+        var failed = false;
+
+        foreach (var index in stepIndices)
+        {
+            var step = sequence.Steps[index];
+            ProcedureResult result;
+
+            if (failed)
+            {
+                result = ProcedureResult.Skipped("Não executado porque uma etapa anterior falhou.");
+            }
+            else
+            {
+                sink.Publish(new StepStartedEvent(index, step.Id));
+                result = await ExecuteStepAsync(step, context, cancellationToken);
+                failed = !result.IsSuccessful;
+            }
+
+            results.Add(result);
+            sink.Publish(new StepFinishedEvent(index, step.Id, result));
+        }
+
+        return results;
+    }
+
+    /// <summary>Etapas consecutivas, a partir de <paramref name="start"/>, que exigem administrador e são necessárias.</summary>
+    private static List<int> ElevatedBlockFrom(MaintenanceSequence sequence, int start, RunState state)
+    {
+        var block = new List<int> { start };
+        for (var j = start + 1; j < sequence.Steps.Count; j++)
+        {
+            var next = sequence.Steps[j];
+            if (!next.RequiresElevation || next.WhyNotNeeded(state) is not null)
+                break;
+            block.Add(j);
+        }
+
+        return block;
     }
 
     private async Task<ProcedureResult> ExecuteStepAsync(
@@ -76,7 +163,7 @@ public sealed class SequenceRunner
         }
     }
 
-    private static SequenceOutcome Summarize(List<ProcedureResult> results, int? failedIndex)
+    private static SequenceOutcome Summarize(ProcedureResult[] results, int? failedIndex)
     {
         if (failedIndex is { } index)
         {

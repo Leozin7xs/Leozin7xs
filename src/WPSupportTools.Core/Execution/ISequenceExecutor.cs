@@ -2,21 +2,19 @@ using WPSupportTools.Core.Procedures;
 
 namespace WPSupportTools.Core.Execution;
 
-/// <summary>
-/// Onde a sequência é executada. Hoje existem duas formas:
-/// no próprio processo (<see cref="InProcessSequenceExecutor"/>) ou em um processo
-/// elevado via UAC (implementado no projeto da interface). No futuro, um serviço do
-/// Windows instalado pela TI pode ser outra implementação, sem mudar o restante.
-/// </summary>
+/// <summary>Ponto de entrada da interface para executar uma sequência.</summary>
 public interface ISequenceExecutor
 {
     Task<SequenceReport> RunAsync(MaintenanceSequence sequence, IRunEventSink sink, CancellationToken cancellationToken);
 }
 
-public sealed class InProcessSequenceExecutor : ISequenceExecutor
+/// <summary>
+/// Roda a sequência neste processo; etapas de administrador vão para o <see cref="IElevatedStepRunner"/>.
+/// </summary>
+public sealed class LocalSequenceExecutor(IElevatedStepRunner? elevatedRunner) : ISequenceExecutor
 {
     public Task<SequenceReport> RunAsync(
         MaintenanceSequence sequence, IRunEventSink sink, CancellationToken cancellationToken) =>
         // Task.Run evita que um procedimento síncrono trave a interface.
-        Task.Run(() => new SequenceRunner().RunAsync(sequence, sink, cancellationToken), cancellationToken);
+        Task.Run(() => new SequenceRunner(elevatedRunner).RunAsync(sequence, sink, cancellationToken), cancellationToken);
 }

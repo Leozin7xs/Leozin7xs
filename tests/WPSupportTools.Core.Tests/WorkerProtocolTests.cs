@@ -6,25 +6,46 @@ namespace WPSupportTools.Core.Tests;
 
 public class WorkerProtocolTests
 {
+    private const string Pipe = "WPSupportTools-00000000000000000000000000000000";
+
     [Fact]
     public void Worker_arguments_round_trip()
     {
-        var original = new WorkerArguments("printing.fix", WorkerArguments.NewPipeName(), 4242);
+        var original = new WorkerArguments("printing.fix", [1, 2, 3], WorkerArguments.NewPipeName(), 4242);
 
         Assert.True(WorkerArguments.IsWorkerInvocation(original.ToArgumentList()));
         Assert.True(WorkerArguments.TryParse(original.ToArgumentList(), out var parsed));
-        Assert.Equal(original, parsed);
+        Assert.Equal(original.SequenceId, parsed.SequenceId);
+        Assert.Equal(original.StepIndices, parsed.StepIndices);
+        Assert.Equal(original.PipeName, parsed.PipeName);
+        Assert.Equal(original.ParentProcessId, parsed.ParentProcessId);
     }
 
     [Theory]
-    [InlineData("--worker", "--sequence", "printing.fix", "--pipe", "WPSupportTools-00000000000000000000000000000000")]
-    [InlineData("--worker", "--sequence", "printing.fix;calc", "--pipe", "WPSupportTools-00000000000000000000000000000000", "--parent", "1")]
-    [InlineData("--worker", "--sequence", "printing.fix", "--pipe", "OutroPipe", "--parent", "1")]
-    [InlineData("--worker", "--sequence", "printing.fix", "--pipe", "WPSupportTools-00000000000000000000000000000000", "--parent", "-1")]
-    [InlineData("--worker", "--pipe", "WPSupportTools-00000000000000000000000000000000", "--sequence", "printing.fix", "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--pipe", Pipe)]
+    [InlineData("--worker", "--sequence", "printing.fix;calc", "--steps", "1", "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1;del", "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "", "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--pipe", "OutroPipe", "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--pipe", Pipe, "--parent", "-1")]
+    [InlineData("--worker", "--steps", "1", "--sequence", "printing.fix", "--pipe", Pipe, "--parent", "1")]
     public void Malformed_worker_arguments_are_rejected(params string[] args)
     {
         Assert.False(WorkerArguments.TryParse(args, out _));
+    }
+
+    [Theory]
+    [InlineData(new[] { 1, 2, 3 }, true)]
+    [InlineData(new[] { 2 }, true)]
+    [InlineData(new[] { 0 }, false)]      // verificação da fila: não exige administrador
+    [InlineData(new[] { 4, 5 }, false)]   // TSPrint: nunca roda como administrador
+    [InlineData(new[] { 2, 1 }, false)]   // fora de ordem
+    [InlineData(new[] { 1, 1 }, false)]   // repetido
+    [InlineData(new[] { 9 }, false)]      // não existe
+    public void Elevated_process_accepts_only_admin_steps_of_the_sequence(int[] steps, bool expected)
+    {
+        Assert.True(Modules.SequenceCatalog.TryCreate("printing.fix", out var sequence));
+        Assert.Equal(expected, new WorkerArguments("printing.fix", steps, Pipe, 1).StepsAreValidFor(sequence));
     }
 
     [Fact]
@@ -35,8 +56,7 @@ public class WorkerProtocolTests
             new StepStartedEvent(0, "printing.check-spooler"),
             new StepFinishedEvent(1, "printing.stop-spooler", ProcedureResult.Fail("falhou", "Win32Exception: acesso negado")),
             new LogEvent(LogLevel.Warning, "atenção"),
-            new RunCompletedEvent(new SequenceReport("printing.fix", SequenceOutcome.Failed,
-                [ProcedureResult.Ok("ok"), ProcedureResult.Fail("x")], 1)),
+            new StepsCompletedEvent([1, 2], [ProcedureResult.Ok("ok"), ProcedureResult.Fail("x")]),
         ];
 
         foreach (var original in events)
@@ -46,11 +66,10 @@ public class WorkerProtocolTests
             Assert.Equal(original.GetType(), copy.GetType());
         }
 
-        var report = Assert.IsType<RunCompletedEvent>(
-            RunEventSerializer.TryDeserialize(RunEventSerializer.Serialize(events[3]))).Report;
-        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Equal(1, report.FailedStepIndex);
-        Assert.Equal(2, report.Results.Count);
+        var done = Assert.IsType<StepsCompletedEvent>(
+            RunEventSerializer.TryDeserialize(RunEventSerializer.Serialize(events[3])));
+        Assert.Equal([1, 2], done.Indices);
+        Assert.Equal(ProcedureOutcome.Failure, done.Results[1].Outcome);
     }
 
     [Theory]

@@ -8,8 +8,8 @@ namespace WPSupportTools.App.Elevation;
 
 /// <summary>
 /// Lado administrador: roda quando o executável é iniciado com "--worker ...".
-/// Não exibe janela, aceita somente sequências do <see cref="SequenceCatalog"/> e
-/// devolve o progresso para a interface que o iniciou.
+/// Não exibe janela, aceita somente etapas de administrador de sequências do
+/// <see cref="SequenceCatalog"/> e devolve o progresso para a interface que o iniciou.
 /// </summary>
 internal static class ElevatedWorkerHost
 {
@@ -18,7 +18,7 @@ internal static class ElevatedWorkerHost
         if (!WorkerArguments.TryParse(args, out var parsed))
             return 2;
 
-        if (!SequenceCatalog.TryCreate(parsed.SequenceId, out var sequence))
+        if (!SequenceCatalog.TryCreate(parsed.SequenceId, out var sequence) || !parsed.StepsAreValidFor(sequence))
             return 3;
 
         await using var pipe = new NamedPipeClientStream(".", parsed.PipeName, PipeDirection.Out, PipeOptions.Asynchronous);
@@ -40,10 +40,10 @@ internal static class ElevatedWorkerHost
         await using var writer = new StreamWriter(pipe, new UTF8Encoding(false)) { AutoFlush = true };
         var sink = new PipeSink(writer);
 
-        // Mesmo que a interface seja fechada no meio, a sequência vai até o fim:
+        // Mesmo que a interface seja fechada no meio, o bloco vai até o fim:
         // interromper no meio poderia deixar o serviço de impressão parado.
-        var report = await new SequenceRunner().RunAsync(sequence, sink);
-        sink.Publish(new RunCompletedEvent(report));
+        var results = await new SequenceRunner().RunStepsAsync(sequence, parsed.StepIndices, sink);
+        sink.Publish(new StepsCompletedEvent(parsed.StepIndices, results));
         return 0;
     }
 

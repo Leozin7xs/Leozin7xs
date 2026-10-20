@@ -25,8 +25,7 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly IAppLog _log;
     private readonly RunLogWriter _runLog;
-    private readonly ISequenceExecutor _inProcessExecutor;
-    private readonly ISequenceExecutor _elevatedExecutor;
+    private readonly ISequenceExecutor _executor;
 
     private MaintenanceSequence? _sequence;
     private Screen _screen = Screen.Home;
@@ -36,12 +35,11 @@ public sealed class MainViewModel : ObservableObject
     private string _failureTitle = "";
     private string _failureMessage = "";
 
-    public MainViewModel(IAppLog log, ISequenceExecutor inProcessExecutor, ISequenceExecutor elevatedExecutor)
+    public MainViewModel(IAppLog log, ISequenceExecutor executor)
     {
         _log = log;
         _runLog = new RunLogWriter(log);
-        _inProcessExecutor = inProcessExecutor;
-        _elevatedExecutor = elevatedExecutor;
+        _executor = executor;
 
         Actions = ModuleCatalog.All.SelectMany(m => m.Actions).ToList();
 
@@ -123,16 +121,14 @@ public sealed class MainViewModel : ObservableObject
             Steps.Add(new StepViewModel(step.Id, step.DisplayName));
         CurrentScreen = Screen.Running;
 
-        var alreadyElevated = Environment.IsPrivilegedProcess;
-        var executor = sequence.RequiresElevation && !alreadyElevated ? _elevatedExecutor : _inProcessExecutor;
         var dispatcher = Application.Current.Dispatcher;
         var sink = new DelegateRunEventSink(e => dispatcher.Invoke(() => OnRunEvent(sequence, e)));
 
-        _runLog.RunStarted(sequence, alreadyElevated);
+        _runLog.RunStarted(sequence, Environment.IsPrivilegedProcess);
         SequenceReport report;
         try
         {
-            report = await executor.RunAsync(sequence, sink, CancellationToken.None);
+            report = await _executor.RunAsync(sequence, sink, CancellationToken.None);
         }
         catch (Exception ex)
         {

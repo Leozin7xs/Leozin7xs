@@ -16,6 +16,8 @@ public sealed class ProcedureContext
 
     public bool IsElevated { get; }
 
+    public RunState State { get; } = new();
+
     /// <summary>Registra um detalhe no log (não aparece na tela do usuário).</summary>
     public void Log(string message, LogLevel level = LogLevel.Info) =>
         _sink.Publish(new LogEvent(level, message));

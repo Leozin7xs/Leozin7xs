@@ -117,6 +117,22 @@ public class SequenceRunnerTests
     }
 
     [Fact]
+    public async Task Conditional_step_is_marked_not_needed_without_running()
+    {
+        var conditional = FakeProcedure.Ok("cond");
+        var sequence = Sequence(
+            new FakeProcedure("set", (ctx, _) => { ctx.State.Set("flag", false); return Task.FromResult(ProcedureResult.Ok("ok")); }),
+            new ConditionalProcedure(conditional, s => s.IsSet("flag") ? null : "sem necessidade"));
+
+        var report = await new SequenceRunner(isElevated: false).RunAsync(sequence, Sink);
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(0, conditional.Executions);
+        Assert.Equal(ProcedureOutcome.NotNeeded, report.Results[1].Outcome);
+        Assert.Equal("sem necessidade", report.Results[1].Message);
+    }
+
+    [Fact]
     public void Sequence_rejects_duplicate_procedures()
     {
         Assert.Throws<ArgumentException>(() => Sequence(FakeProcedure.Ok("x"), FakeProcedure.Ok("x")));

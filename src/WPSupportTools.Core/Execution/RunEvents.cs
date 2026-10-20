@@ -12,7 +12,7 @@ namespace WPSupportTools.Core.Execution;
 [JsonDerivedType(typeof(StepStartedEvent), "stepStarted")]
 [JsonDerivedType(typeof(StepFinishedEvent), "stepFinished")]
 [JsonDerivedType(typeof(LogEvent), "log")]
-[JsonDerivedType(typeof(RunCompletedEvent), "completed")]
+[JsonDerivedType(typeof(StepsCompletedEvent), "stepsCompleted")]
 public abstract record RunEvent;
 
 public sealed record StepStartedEvent(int Index, string ProcedureId) : RunEvent;
@@ -21,8 +21,8 @@ public sealed record StepFinishedEvent(int Index, string ProcedureId, ProcedureR
 
 public sealed record LogEvent(LogLevel Level, string Message) : RunEvent;
 
-/// <summary>Último evento enviado pelo processo elevado, com o resultado final.</summary>
-public sealed record RunCompletedEvent(SequenceReport Report) : RunEvent;
+/// <summary>Último evento enviado pelo processo elevado: o resultado de cada etapa que ele recebeu.</summary>
+public sealed record StepsCompletedEvent(IReadOnlyList<int> Indices, IReadOnlyList<ProcedureResult> Results) : RunEvent;
 
 public interface IRunEventSink
 {

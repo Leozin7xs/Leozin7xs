@@ -12,7 +12,7 @@ public sealed class RunLogWriter(IAppLog log)
     public void RunStarted(MaintenanceSequence sequence, bool elevatedProcess) =>
         log.Write(LogLevel.Info,
             $"Início: {sequence.Id} — {sequence.Title} ({AppInfo.Name} v{AppInfo.Version}; " +
-            $"{(elevatedProcess ? "processo elevado" : "processo elevado sob demanda")}).");
+            $"{(elevatedProcess ? "aberto como administrador" : "administrador pedido só nas etapas que precisam")}).");
 
     public void Handle(MaintenanceSequence sequence, RunEvent runEvent)
     {
@@ -59,7 +59,7 @@ public sealed class RunLogWriter(IAppLog log)
 
     private static LogLevel LevelFor(ProcedureOutcome outcome) => outcome switch
     {
-        ProcedureOutcome.Success => LogLevel.Info,
+        ProcedureOutcome.Success or ProcedureOutcome.NotNeeded => LogLevel.Info,
         ProcedureOutcome.NotConfigured or ProcedureOutcome.Skipped => LogLevel.Warning,
         _ => LogLevel.Error,
     };
@@ -68,6 +68,7 @@ public sealed class RunLogWriter(IAppLog log)
     {
         ProcedureOutcome.Success => "OK",
         ProcedureOutcome.NotConfigured => "SIMULADO",
+        ProcedureOutcome.NotNeeded => "NÃO NECESSÁRIO",
         ProcedureOutcome.Skipped => "NÃO EXECUTADO",
         ProcedureOutcome.Failure => "FALHA",
         ProcedureOutcome.ElevationRequired => "SEM PERMISSÃO DE ADMINISTRADOR",

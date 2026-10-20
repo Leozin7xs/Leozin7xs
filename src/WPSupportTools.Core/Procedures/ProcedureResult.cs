@@ -11,6 +11,9 @@ public enum ProcedureOutcome
     /// </summary>
     NotConfigured,
 
+    /// <summary>A etapa não se aplica a esta situação (ex.: "parar o spooler" quando a fila não está travada).</summary>
+    NotNeeded,
+
     /// <summary>O procedimento não foi executado porque uma etapa anterior falhou.</summary>
     Skipped,
 
@@ -23,7 +26,7 @@ public enum ProcedureOutcome
 
 public sealed record ProcedureResult(ProcedureOutcome Outcome, string Message, string? ErrorDetail = null)
 {
-    public bool IsSuccessful => Outcome is ProcedureOutcome.Success or ProcedureOutcome.NotConfigured;
+    public bool IsSuccessful => Outcome is ProcedureOutcome.Success or ProcedureOutcome.NotConfigured or ProcedureOutcome.NotNeeded;
 
     public static ProcedureResult Ok(string message) => new(ProcedureOutcome.Success, message);
 
@@ -35,6 +38,9 @@ public sealed record ProcedureResult(ProcedureOutcome Outcome, string Message, s
 
     public static ProcedureResult NotConfigured(string message) =>
         new(ProcedureOutcome.NotConfigured, message);
+
+    public static ProcedureResult NotNeeded(string message) =>
+        new(ProcedureOutcome.NotNeeded, message);
 
     public static ProcedureResult Skipped(string message) =>
         new(ProcedureOutcome.Skipped, message);

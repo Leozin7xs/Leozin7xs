@@ -29,5 +29,11 @@ public interface IProcedure
     /// <summary>Tempo máximo de execução. Ao estourar, o procedimento é considerado falho.</summary>
     TimeSpan Timeout => TimeSpan.FromMinutes(2);
 
+    /// <summary>
+    /// Null quando a etapa deve rodar. Caso contrário, o motivo exibido como "não necessária".
+    /// Avaliado antes de executar; ver <see cref="ConditionalProcedure"/>.
+    /// </summary>
+    string? WhyNotNeeded(RunState state) => null;
+
     Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken);
 }

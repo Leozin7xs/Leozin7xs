@@ -41,9 +41,9 @@ public sealed class StepViewModel(string procedureId, string name) : ObservableO
         {
             ProcedureOutcome.Success => StepStatus.Succeeded,
             ProcedureOutcome.NotConfigured => StepStatus.Simulated,
-            ProcedureOutcome.Skipped => StepStatus.Skipped,
+            ProcedureOutcome.Skipped or ProcedureOutcome.NotNeeded => StepStatus.Skipped,
             _ => StepStatus.Failed,
         };
-        Message = result.Outcome == ProcedureOutcome.Success ? null : result.Message;
+        Message = string.IsNullOrWhiteSpace(result.Message) ? null : result.Message;
     }
 }

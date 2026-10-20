@@ -1,17 +1,38 @@
+using WPSupportTools.Core.Platform;
 using WPSupportTools.Core.Procedures;
 
 namespace WPSupportTools.Core.Modules.Printing.Correction.Procedures;
 
-/// <summary>
-/// Inicia novamente o serviço de impressão.
-/// </summary>
-/// <remarks>
-/// STATUS: aguardando o comando oficial utilizado no ambiente da WP.
-/// Enquanto isso, esta etapa roda em modo de simulação e não altera nada no computador.
-/// </remarks>
-public sealed class StartPrintSpoolerProcedure : NotConfiguredProcedure
+/// <summary>Equivalente a "net start spooler". Não altera o tipo de inicialização do serviço.</summary>
+public sealed class StartPrintSpoolerProcedure(PlatformServices platform) : IProcedure
 {
-    public override string Id => "printing.start-spooler";
-    public override string DisplayName => "Iniciando serviço de impressão";
-    public override bool RequiresElevation => true;
+    public string Id => "printing.start-spooler";
+    public string DisplayName => "Iniciando serviço de impressão";
+    public bool RequiresElevation => true;
+
+    public Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken)
+    {
+        var spooler = platform.Services.Find(PrintingConstants.SpoolerServiceName);
+        if (spooler is null)
+            return Task.FromResult(ProcedureResult.Fail("Serviço de impressão (Spooler) não encontrado. Nada foi alterado."));
+
+        if (spooler.IsDisabled)
+            return Task.FromResult(ProcedureResult.Fail(
+                "O serviço de impressão está desativado no Windows. Nada foi alterado."));
+
+        if (spooler.State == ServiceState.Running)
+            return Task.FromResult(ProcedureResult.Ok("O serviço de impressão já estava em execução."));
+
+        try
+        {
+            platform.Services.Start(spooler.Name, PrintingConstants.ServiceTimeout);
+        }
+        catch (TimeoutException)
+        {
+            return Task.FromResult(ProcedureResult.Fail(
+                $"O serviço de impressão não iniciou em {PrintingConstants.ServiceTimeout.TotalSeconds:0} segundos."));
+        }
+
+        return Task.FromResult(ProcedureResult.Ok("Serviço de impressão iniciado."));
+    }
 }

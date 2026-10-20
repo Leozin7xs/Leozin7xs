@@ -4,9 +4,8 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.1.0): arquitetura e interface.**
-> Os procedimentos de impressão estão em **modo de simulação**: nenhum comando real é executado
-> no Windows até que os comandos oficiais da WP sejam fornecidos e implementados.
+> **Status atual (v0.2.0):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
 
 ---
 
@@ -49,35 +48,56 @@ Módulos futuros (UniLab, Rede, Telefonia) entram como novas pastas em `Modules/
 
 ## Sequência de impressão (atual)
 
-Definida em `src/WPSupportTools.Core/Modules/Printing/Correction/PrintingFixSequence.cs`:
+Procedimento manual da WP, definido em
+`src/WPSupportTools.Core/Modules/Printing/Correction/PrintingFixSequence.cs`:
 
-| # | Procedimento | ID (log) | Admin | Status |
+```
+1. Ver se a fila de impressão está travada.
+   Se SIM → parar o spooler, limpar a fila, iniciar o spooler   (net stop / net start spooler)
+   Se NÃO → ver se o TSPrint está aberto; se não estiver, abrir.
+```
+
+| # | Etapa | ID (log) | Quando roda | Admin |
 |---|---|---|---|---|
-| 1 | Verificando serviço de impressão | `printing.check-spooler` | não | aguardando comando |
-| 2 | Parando serviço de impressão | `printing.stop-spooler` | sim | aguardando comando |
-| 3 | Limpando fila de impressão | `printing.clear-queue` | sim | aguardando comando |
-| 4 | Iniciando serviço de impressão | `printing.start-spooler` | sim | aguardando comando |
-| 5 | Reiniciando componentes necessários | `printing.restart-components` | sim | aguardando comando |
-| 6 | Finalizando manutenção | `printing.finalize` | não | aguardando comando |
+| 1 | Verificando fila de impressão | `printing.check-queue` | sempre | não |
+| 2 | Parando serviço de impressão | `printing.stop-spooler` | fila travada | sim |
+| 3 | Limpando fila de impressão | `printing.clear-queue` | fila travada | sim |
+| 4 | Iniciando serviço de impressão | `printing.start-spooler` | fila travada | sim |
+| 5 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
+| 6 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
 
-Para mudar a ordem ou remover uma etapa, altere apenas a lista em `PrintingFixSequence.Create()`.
+Etapas que não se aplicam aparecem como "não necessária". O aviso do UAC só aparece quando a fila
+está travada, uma única vez para as etapas 2–4. O TSPrint é aberto como o próprio usuário, nunca como administrador.
+
+**Fila travada** = há ao menos um documento com erro, offline, sem papel, bloqueado ou pedindo intervenção,
+ou um documento parado na fila há mais de 2 minutos. Spooler parado também conta como travado.
+Os valores ficam em `PrintingConstants.cs`.
+
+### Regras de segurança por etapa
+
+- **Parar spooler:** só o serviço `Spooler`. Se outro serviço depender dele e estiver rodando, não para nada.
+- **Limpar fila:** só com o spooler parado; só na pasta padrão `%SystemRoot%\System32\spool\PRINTERS`, e só se for
+  a pasta configurada no Windows; só arquivos `.SPL` e `.SHD`; não entra em subpastas nem segue links.
+- **Iniciar spooler:** se o serviço estiver desativado no Windows, não altera; informa o suporte.
+- **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo
+  configurado em `PrintingConstants.TSPrintExecutablePath`. Configurações do TSPrint (inclusive senha) não são lidas.
 
 ### Regras de execução
 
 - As etapas rodam **na ordem**, uma de cada vez.
 - **Na primeira falha a sequência para.** As etapas seguintes são marcadas como "não executadas".
 - Não há novas tentativas nem ações alternativas automáticas.
-- Cada etapa tem tempo limite (padrão: 2 min); estourar o tempo conta como falha.
-- Falta de permissão é informada como "permissão de administrador necessária".
+- Cada etapa tem tempo limite; estourar o tempo conta como falha.
 - A janela não pode ser fechada no meio da manutenção (para não deixar o spooler parado).
 
 ## Elevação de privilégios (UAC)
 
 1. A interface abre **sem** privilégios de administrador (`asInvoker` em `app.manifest`).
-2. Ao iniciar uma sequência que contém etapas administrativas, o app inicia **o próprio executável**
+2. Ao chegar a etapas administrativas, o app inicia **o próprio executável**
    com o verbo `runas`. O Windows mostra o aviso do UAC.
-3. O processo elevado recebe somente `--worker --sequence printing.fix --pipe <nome> --parent <pid>`.
-   Ele só aceita IDs presentes no `SequenceCatalog`: **não existe forma de passar um comando**.
+3. O processo elevado recebe somente `--worker --sequence printing.fix --steps 1,2,3 --pipe <nome> --parent <pid>`.
+   Ele só aceita sequências do `SequenceCatalog` e só etapas que exigem administrador:
+   **não existe forma de passar um comando**.
 4. A comunicação é por *named pipe* local com nome aleatório. Os dois lados conferem o PID um do outro
    (`GetNamedPipeClientProcessId` / `GetNamedPipeServerProcessId`).
 5. Se o usuário recusar o UAC, nada é executado e a tela informa que a permissão é necessária.
@@ -91,17 +111,19 @@ Recomendações de implantação:
 
 - Local: `%LOCALAPPDATA%\WPSupportTools\Logs\wpst-AAAAMMDD.log` (um arquivo por dia).
 - Registra: data/hora, versão, cada etapa (ID, nome, resultado), mensagem de erro, retorno do usuário.
-- Não registra nome de usuário, nome do computador nem dados pessoais.
+- Não registra nome de usuário, nome do computador, nomes de documentos nem dados pessoais.
 - Botão "Abrir pasta de logs" no rodapé.
 
 Exemplo:
 
 ```
-[2026-10-05 22:41:03] [INFO ] Início: printing.fix — Corrigindo problema de impressão… (WP Support Tools v0.1.0; processo elevado sob demanda).
-[2026-10-05 22:41:04] [INFO ] Etapa 1/6 [printing.check-spooler] Verificando serviço de impressão: iniciando
-[2026-10-05 22:41:04] [INFO ] Etapa 1/6 [printing.check-spooler] Verificando serviço de impressão: OK — Serviço Spooler encontrado
-[2026-10-05 22:41:05] [ERRO ] Etapa 2/6 [printing.stop-spooler] Parando serviço de impressão: FALHA — ... | Erro: ...
-[2026-10-05 22:41:05] [ERRO ] Fim: printing.fix — resultado: falhou (etapa com falha: printing.stop-spooler)
+[2026-10-20 10:41:03] [INFO ] Início: printing.fix — Corrigindo problema de impressão… (WP Support Tools v0.2.0; ...)
+[2026-10-20 10:41:03] [INFO ] Fila de impressão: 2 trabalho(s) na fila (Samsung M408x Series: 2); com erro: 1; há mais de 2 min: 2.
+[2026-10-20 10:41:03] [INFO ] Etapa 1/6 [printing.check-queue] Verificando fila de impressão: OK — Fila travada (2 documento(s) parado(s)).
+[2026-10-20 10:41:09] [INFO ] Etapa 2/6 [printing.stop-spooler] Parando serviço de impressão: OK — Serviço de impressão parado.
+[2026-10-20 10:41:09] [INFO ] Etapa 3/6 [printing.clear-queue] Limpando fila de impressão: OK — Fila limpa (4 arquivo(s) removido(s)).
+[2026-10-20 10:41:11] [INFO ] Etapa 4/6 [printing.start-spooler] Iniciando serviço de impressão: OK — Serviço de impressão iniciado.
+[2026-10-20 10:41:11] [INFO ] Etapa 5/6 [printing.check-tsprint] Verificando o TSPrint: NÃO NECESSÁRIO — Não necessário: a fila foi reiniciada.
 ```
 
 ## Internet
@@ -123,8 +145,7 @@ O `.exe` gerado é *self-contained* (≈60 MB) e roda em Windows 10/11 x64 sem i
 
 ## Como um procedimento real será implementado
 
-Hoje cada etapa herda de `NotConfiguredProcedure` (simulação). Quando o comando oficial for definido,
-a classe passa a implementar `IProcedure` diretamente:
+Cada etapa é uma classe que implementa `IProcedure` (ver `Modules/Printing/Correction/Procedures/`):
 
 ```csharp
 public sealed class StopPrintSpoolerProcedure : IProcedure

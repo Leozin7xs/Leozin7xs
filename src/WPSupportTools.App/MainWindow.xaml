@@ -183,7 +183,7 @@
                         <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="16"
                                    Foreground="{StaticResource WarningBrush}" VerticalAlignment="Top" Margin="0,1,10,0" />
                         <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}"
-                                   Text="Modo de demonstração: os comandos reais ainda não foram configurados. Nenhuma alteração foi feita neste computador." />
+                                   Text="Uma ou mais etapas ainda não estão configuradas e foram apenas simuladas: nelas, nada foi alterado neste computador." />
                     </DockPanel>
                 </Border>
 

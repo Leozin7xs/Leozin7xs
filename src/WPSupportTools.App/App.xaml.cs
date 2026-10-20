@@ -38,7 +38,7 @@ public partial class App : Application
         DispatcherUnhandledException += OnUnhandledException;
         new RunLogWriter(_log).ApplicationStarted();
 
-        var viewModel = new MainViewModel(_log, new InProcessSequenceExecutor(), new ElevatedWorkerExecutor());
+        var viewModel = new MainViewModel(_log, new LocalSequenceExecutor(new UacElevatedStepRunner()));
         var window = new MainWindow(viewModel);
         window.Closed += (_, _) => Shutdown();
         window.Show();
