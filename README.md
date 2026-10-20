@@ -69,8 +69,8 @@ Procedimento manual da WP, definido em
 Etapas que não se aplicam aparecem como "não necessária". O aviso do UAC só aparece quando a fila
 está travada, uma única vez para as etapas 2–4. O TSPrint é aberto como o próprio usuário, nunca como administrador.
 
-**Fila travada** = há ao menos um documento com erro, offline, sem papel, bloqueado ou pedindo intervenção,
-ou um documento parado na fila há mais de 2 minutos. Spooler parado também conta como travado.
+**Fila travada** = há ao menos um documento com status de erro, offline, sem papel, bloqueado ou pedindo
+intervenção. Documento só demorando (sem erro) não conta. Spooler parado também conta como travado.
 Os valores ficam em `PrintingConstants.cs`.
 
 ### Regras de segurança por etapa
@@ -118,8 +118,8 @@ Exemplo:
 
 ```
 [2026-10-20 10:41:03] [INFO ] Início: printing.fix — Corrigindo problema de impressão… (WP Support Tools v0.2.0; ...)
-[2026-10-20 10:41:03] [INFO ] Fila de impressão: 2 trabalho(s) na fila (Samsung M408x Series: 2); com erro: 1; há mais de 2 min: 2.
-[2026-10-20 10:41:03] [INFO ] Etapa 1/6 [printing.check-queue] Verificando fila de impressão: OK — Fila travada (2 documento(s) parado(s)).
+[2026-10-20 10:41:03] [INFO ] Fila de impressão: 2 documento(s) na fila (Samsung M408x Series: 2 (Error, Printing)); com erro: 1.
+[2026-10-20 10:41:03] [INFO ] Etapa 1/6 [printing.check-queue] Verificando fila de impressão: OK — Fila travada (1 documento(s) com erro).
 [2026-10-20 10:41:09] [INFO ] Etapa 2/6 [printing.stop-spooler] Parando serviço de impressão: OK — Serviço de impressão parado.
 [2026-10-20 10:41:09] [INFO ] Etapa 3/6 [printing.clear-queue] Limpando fila de impressão: OK — Fila limpa (4 arquivo(s) removido(s)).
 [2026-10-20 10:41:11] [INFO ] Etapa 4/6 [printing.start-spooler] Iniciando serviço de impressão: OK — Serviço de impressão iniciado.

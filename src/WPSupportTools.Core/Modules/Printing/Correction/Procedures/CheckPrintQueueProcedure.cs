@@ -29,12 +29,12 @@ public sealed class CheckPrintQueueProcedure(PlatformServices platform) : IProce
                 "O serviço de impressão não está em execução. Ele será reiniciado."));
         }
 
-        var assessment = PrintQueueAnalyzer.Assess(platform.PrintJobs.ReadJobs(), platform.Now());
+        var assessment = PrintQueueAnalyzer.Assess(platform.PrintJobs.ReadJobs());
         context.Log($"Fila de impressão: {assessment.Summary}");
         context.State.Set(PrintingState.QueueNeedsReset, assessment.IsStuck);
 
         return Task.FromResult(ProcedureResult.Ok(assessment.IsStuck
-            ? $"Fila travada ({assessment.TotalJobs} documento(s) parado(s))."
+            ? $"Fila travada ({assessment.JobsWithProblem} documento(s) com erro)."
             : assessment.TotalJobs == 0 ? "Fila sem documentos travados." : "Fila funcionando normalmente."));
     }
 }

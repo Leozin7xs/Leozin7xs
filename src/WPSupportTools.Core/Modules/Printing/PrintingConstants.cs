@@ -9,9 +9,6 @@ public static class PrintingConstants
     /// <summary>Tempo máximo para o serviço parar ou iniciar.</summary>
     public static readonly TimeSpan ServiceTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>Um trabalho na fila há mais tempo que isso é considerado travado.</summary>
-    public static readonly TimeSpan StuckJobAge = TimeSpan.FromMinutes(2);
-
     /// <summary>Tipos de arquivo da fila de impressão. Somente estes são apagados.</summary>
     public static readonly IReadOnlyList<string> SpoolFileExtensions = [".SPL", ".SHD"];
 

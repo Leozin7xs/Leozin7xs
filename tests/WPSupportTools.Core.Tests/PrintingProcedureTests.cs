@@ -21,11 +21,11 @@ public sealed class PrintingProcedureTests : IDisposable
 
     [Fact]
     public void Empty_queue_is_not_stuck() =>
-        Assert.False(PrintQueueAnalyzer.Assess([], _fake.Now).IsStuck);
+        Assert.False(PrintQueueAnalyzer.Assess([]).IsStuck);
 
     [Fact]
-    public void Recent_job_without_error_is_not_stuck() =>
-        Assert.False(PrintQueueAnalyzer.Assess([Job(PrintJobStatus.Printing, _fake.Now.AddSeconds(-30))], _fake.Now).IsStuck);
+    public void Slow_job_without_error_is_not_stuck_even_after_minutes() =>
+        Assert.False(PrintQueueAnalyzer.Assess([Job(PrintJobStatus.Printing, _fake.Now.AddMinutes(-10))]).IsStuck);
 
     [Theory]
     [InlineData(PrintJobStatus.Error)]
@@ -33,12 +33,7 @@ public sealed class PrintingProcedureTests : IDisposable
     [InlineData(PrintJobStatus.Blocked)]
     [InlineData(PrintJobStatus.UserInterventionRequired | PrintJobStatus.Printing)]
     public void Job_with_problem_is_stuck(PrintJobStatus status) =>
-        Assert.True(PrintQueueAnalyzer.Assess([Job(status, _fake.Now)], _fake.Now).IsStuck);
-
-    [Fact]
-    public void Job_waiting_longer_than_limit_is_stuck() =>
-        Assert.True(PrintQueueAnalyzer.Assess(
-            [Job(PrintJobStatus.Spooling, _fake.Now - PrintingConstants.StuckJobAge - TimeSpan.FromSeconds(1))], _fake.Now).IsStuck);
+        Assert.True(PrintQueueAnalyzer.Assess([Job(status, _fake.Now)]).IsStuck);
 
     // ---------- Verificar fila ----------
 
