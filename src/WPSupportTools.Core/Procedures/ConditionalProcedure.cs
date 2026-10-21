@@ -10,6 +10,7 @@ public sealed class ConditionalProcedure(IProcedure inner, Func<RunState, string
     public string DisplayName => inner.DisplayName;
     public bool RequiresElevation => inner.RequiresElevation;
     public TimeSpan Timeout => inner.Timeout;
+    public bool RunsEvenAfterFailure => inner.RunsEvenAfterFailure;
 
     public string? WhyNotNeeded(RunState state) => whyNotNeeded(state);
 

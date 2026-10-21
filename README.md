@@ -78,14 +78,16 @@ Os valores ficam em `PrintingConstants.cs`.
 - **Parar spooler:** só o serviço `Spooler`. Se outro serviço depender dele e estiver rodando, não para nada.
 - **Limpar fila:** só com o spooler parado; só na pasta padrão `%SystemRoot%\System32\spool\PRINTERS`, e só se for
   a pasta configurada no Windows; só arquivos `.SPL` e `.SHD`; não entra em subpastas nem segue links.
-- **Iniciar spooler:** se o serviço estiver desativado no Windows, não altera; informa o suporte.
+- **Iniciar spooler:** roda **mesmo se a limpeza falhar** — o spooler nunca fica desligado ao final.
+  Se o serviço estiver desativado no Windows, não altera; informa o suporte.
 - **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo
   configurado em `PrintingConstants.TSPrintExecutablePath`. Configurações do TSPrint (inclusive senha) não são lidas.
 
 ### Regras de execução
 
 - As etapas rodam **na ordem**, uma de cada vez.
-- **Na primeira falha a sequência para.** As etapas seguintes são marcadas como "não executadas".
+- **Na primeira falha a sequência para.** As etapas seguintes são marcadas como "não executadas",
+  exceto religar o spooler, que sempre roda se ele tiver sido parado.
 - Não há novas tentativas nem ações alternativas automáticas.
 - Cada etapa tem tempo limite; estourar o tempo conta como falha.
 - A janela não pode ser fechada no meio da manutenção (para não deixar o spooler parado).

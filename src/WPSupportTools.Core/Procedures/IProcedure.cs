@@ -35,5 +35,11 @@ public interface IProcedure
     /// </summary>
     string? WhyNotNeeded(RunState state) => null;
 
+    /// <summary>
+    /// Se verdadeiro, a etapa roda mesmo que uma etapa anterior tenha falhado
+    /// (ex.: religar o serviço de impressão — ele nunca pode ficar desligado).
+    /// </summary>
+    bool RunsEvenAfterFailure => false;
+
     Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken);
 }

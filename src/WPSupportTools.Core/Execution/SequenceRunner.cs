@@ -6,7 +6,8 @@ namespace WPSupportTools.Core.Execution;
 /// Executa uma sequência de forma determinística: etapas na ordem definida, uma de cada vez.
 /// <list type="bullet">
 ///   <item>Etapas cuja condição não se aplica aparecem como "não necessárias".</item>
-///   <item>Na primeira falha a execução para; as etapas restantes não são executadas.</item>
+///   <item>Na primeira falha a execução para; as etapas restantes não são executadas,
+///         exceto as marcadas com <see cref="IProcedure.RunsEvenAfterFailure"/> (ex.: religar o spooler).</item>
 ///   <item>Etapas de administrador são enviadas, em bloco, ao <see cref="IElevatedStepRunner"/>
 ///         (uma única confirmação do UAC por bloco). As demais rodam no próprio processo.</item>
 ///   <item>Não há novas tentativas nem ações alternativas.</item>
@@ -47,7 +48,7 @@ public sealed class SequenceRunner
         {
             var step = sequence.Steps[i];
 
-            if (failedIndex is not null)
+            if (failedIndex is not null && !step.RunsEvenAfterFailure)
             {
                 Finish(i++, ProcedureResult.Skipped("Não executado porque uma etapa anterior falhou."));
                 continue;
@@ -61,7 +62,7 @@ public sealed class SequenceRunner
 
             if (step.RequiresElevation && !_isElevated && _elevatedRunner is not null)
             {
-                var block = ElevatedBlockFrom(sequence, i, context.State);
+                var block = ElevatedBlockFrom(sequence, i, context.State, afterFailure: failedIndex is not null);
                 var blockResults = await _elevatedRunner.RunAsync(sequence, block, sink, cancellationToken);
                 for (var k = 0; k < block.Count; k++)
                 {
@@ -102,7 +103,7 @@ public sealed class SequenceRunner
             var step = sequence.Steps[index];
             ProcedureResult result;
 
-            if (failed)
+            if (failed && !step.RunsEvenAfterFailure)
             {
                 result = ProcedureResult.Skipped("Não executado porque uma etapa anterior falhou.");
             }
@@ -110,7 +111,7 @@ public sealed class SequenceRunner
             {
                 sink.Publish(new StepStartedEvent(index, step.Id));
                 result = await ExecuteStepAsync(step, context, cancellationToken);
-                failed = !result.IsSuccessful;
+                failed |= !result.IsSuccessful;
             }
 
             results.Add(result);
@@ -121,13 +122,14 @@ public sealed class SequenceRunner
     }
 
     /// <summary>Etapas consecutivas, a partir de <paramref name="start"/>, que exigem administrador e são necessárias.</summary>
-    private static List<int> ElevatedBlockFrom(MaintenanceSequence sequence, int start, RunState state)
+    private static List<int> ElevatedBlockFrom(MaintenanceSequence sequence, int start, RunState state, bool afterFailure)
     {
         var block = new List<int> { start };
         for (var j = start + 1; j < sequence.Steps.Count; j++)
         {
             var next = sequence.Steps[j];
-            if (!next.RequiresElevation || next.WhyNotNeeded(state) is not null)
+            if (!next.RequiresElevation || next.WhyNotNeeded(state) is not null ||
+                (afterFailure && !next.RunsEvenAfterFailure))
                 break;
             block.Add(j);
         }

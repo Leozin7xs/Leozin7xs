@@ -19,10 +19,13 @@ public sealed class ClearPrintQueueProcedure(PlatformServices platform) : IProce
     public string DisplayName => "Limpando fila de impressão";
     public bool RequiresElevation => true;
 
-    public Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken) =>
-        Task.FromResult(Execute(context));
+    /// <summary>
+    /// Logo após o spooler parar, outros processos de impressão do Windows podem segurar os arquivos
+    /// por alguns segundos. Os arquivos que falharem são tentados de novo até este limite.
+    /// </summary>
+    internal static TimeSpan LockedFileGracePeriod { get; set; } = TimeSpan.FromSeconds(5);
 
-    private ProcedureResult Execute(ProcedureContext context)
+    public async Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken)
     {
         var spooler = platform.Services.Find(PrintingConstants.SpoolerServiceName);
         if (spooler is null)
@@ -45,26 +48,40 @@ public sealed class ClearPrintQueueProcedure(PlatformServices platform) : IProce
             return ProcedureResult.Fail("A pasta da fila de impressão é um link. Nada foi apagado.", standard);
 
         int deleted = 0, ignored = 0;
-        var errors = new List<string>();
+        var pending = new List<FileInfo>();
 
         foreach (var file in folder.EnumerateFiles("*", SearchOption.TopDirectoryOnly))
         {
             var isSpoolFile = PrintingConstants.SpoolFileExtensions.Contains(file.Extension, StringComparer.OrdinalIgnoreCase);
             if (!isSpoolFile || file.Attributes.HasFlag(FileAttributes.ReparsePoint))
-            {
                 ignored++;
-                continue;
+            else
+                pending.Add(file);
+        }
+
+        // Sempre os mesmos arquivos, já validados acima; nada novo é procurado nas novas tentativas.
+        var errors = new Dictionary<string, string>();
+        var deadline = DateTime.UtcNow + LockedFileGracePeriod;
+        while (true)
+        {
+            errors.Clear();
+            foreach (var file in pending.ToList())
+            {
+                try
+                {
+                    file.Delete();
+                    pending.Remove(file);
+                    deleted++;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    errors[file.Name] = $"{ex.GetType().Name}: {ex.Message}";
+                }
             }
 
-            try
-            {
-                file.Delete();
-                deleted++;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                errors.Add($"{file.Name}: {ex.Message}");
-            }
+            if (pending.Count == 0 || DateTime.UtcNow >= deadline)
+                break;
+            await Task.Delay(500, cancellationToken);
         }
 
         context.Log($"Fila de impressão ({standard}): {deleted} arquivo(s) apagado(s), " +
@@ -72,7 +89,7 @@ public sealed class ClearPrintQueueProcedure(PlatformServices platform) : IProce
 
         if (errors.Count > 0)
             return ProcedureResult.Fail($"{errors.Count} arquivo(s) da fila não puderam ser apagados.",
-                string.Join(" | ", errors.Take(5)));
+                string.Join(" | ", errors.Take(5).Select(e => $"{e.Key}: {e.Value}")));
 
         return ProcedureResult.Ok(deleted == 0
             ? "A fila já estava vazia."

@@ -80,7 +80,7 @@ public sealed class PrintingFlowTests : IDisposable
     }
 
     [Fact]
-    public async Task Failure_while_stopping_spooler_skips_clearing_and_starting()
+    public async Task Failure_while_stopping_spooler_skips_clearing_but_still_checks_spooler_is_on()
     {
         _fake.Jobs.Add(new PrintJobInfo("Samsung", PrintJobStatus.Error, _fake.Now));
         _fake.Services.Spooler = FakeServices.Running() with { RunningDependents = ["Fax"] };
@@ -91,7 +91,25 @@ public sealed class PrintingFlowTests : IDisposable
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
         Assert.Equal(1, report.FailedStepIndex);
         Assert.Equal(ProcedureOutcome.Skipped, report.Results[2].Outcome);
+        Assert.Equal(ProcedureOutcome.Success, report.Results[3].Outcome);
+        Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
         Assert.True(File.Exists(spl));
+    }
+
+    [Fact]
+    public async Task Spooler_is_turned_back_on_even_when_clearing_the_queue_fails()
+    {
+        _fake.Jobs.Add(new PrintJobInfo("Samsung", PrintJobStatus.Error, _fake.Now));
+        Directory.Delete(_fake.SpoolFolder, recursive: true);   // limpeza vai falhar
+
+        var report = await RunAsync();
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Equal(2, report.FailedStepIndex);
+        Assert.Equal(["stop Spooler", "start Spooler"], _fake.Services.Calls);
+        Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
+        Assert.Equal(ProcedureOutcome.Success, report.Results[3].Outcome);
+        Assert.Equal(ProcedureOutcome.Skipped, report.Results[4].Outcome);
     }
 
     [Fact]

@@ -3,12 +3,16 @@ using WPSupportTools.Core.Procedures;
 
 namespace WPSupportTools.Core.Modules.Printing.Correction.Procedures;
 
-/// <summary>Equivalente a "net start spooler". Não altera o tipo de inicialização do serviço.</summary>
+/// <summary>
+/// Equivalente a "net start spooler". Não altera o tipo de inicialização do serviço.
+/// Roda mesmo se a limpeza da fila falhar: o spooler nunca pode ficar desligado.
+/// </summary>
 public sealed class StartPrintSpoolerProcedure(PlatformServices platform) : IProcedure
 {
     public string Id => "printing.start-spooler";
     public string DisplayName => "Iniciando serviço de impressão";
     public bool RequiresElevation => true;
+    public bool RunsEvenAfterFailure => true;
 
     public Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken)
     {
