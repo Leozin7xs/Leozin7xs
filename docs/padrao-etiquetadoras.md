@@ -3,8 +3,8 @@
 Referência para o módulo "Problema na etiquetadora". O app só **confere** estes valores
 (somente leitura). Alterar configurações do driver ainda não foi autorizado.
 
-Fonte: prints do driver enviados pelo suporte (ZDesigner GC420t (EPL)). A TLP2844 usa o mesmo padrão.
-ZD220-203dpi (ZPL): prints pendentes.
+Fontes: prints do driver enviados pelo suporte — ZDesigner GC420t (EPL) (a TLP2844 usa o mesmo padrão)
+e ZDesigner ZD230-203dpi ZPL. Os drivers EPL e ZPL têm telas e nomes de campos diferentes.
 
 ## Modelos usados nas unidades
 
@@ -12,7 +12,12 @@ ZD220-203dpi (ZPL): prints pendentes.
 |---|---|---|
 | ZDesigner GC420t (EPL) | EPL | este documento |
 | ZDesigner TLP 2844 | EPL | este documento |
-| ZDesigner ZD220-203dpi ZPL | ZPL | **pendente** |
+| ZDesigner ZD230-203dpi ZPL | ZPL | seção "Driver ZPL" abaixo |
+| ZDesigner ZD220-203dpi ZPL | ZPL | a confirmar se é igual à ZD230 |
+
+---
+
+# Driver EPL (GC420t, TLP2844)
 
 ## Aba "Options"
 
@@ -57,3 +62,44 @@ ZD220-203dpi (ZPL): prints pendentes.
 Botão **Calibrate** na aba "Advanced Setup". O app deve fazer o equivalente, apenas depois de confirmar
 que as configurações estão no padrão e a etiqueta continua desconfigurada. Método exato
 (comando enviado à impressora) a validar em teste com cada modelo.
+
+---
+
+# Driver ZPL (ZD230-203dpi)
+
+## Config. de página
+
+| Campo | Valor padrão | Observação |
+|---|---|---|
+| Formato → Selecionar | Personalizar | |
+| Largura × Altura | **50,8 × 25,4 mm** | mesmo tamanho dos modelos EPL |
+| Tipo de mídia | Etiquetas com intervalos | |
+| Rotação | **0° - Retrato** | diferente dos EPL (lá: rotate 180° marcado) — confirmar |
+| Etiqueta espelho | desmarcado | |
+| Inverso | desmarcado | |
+
+## Opções de Impressão
+
+| Campo | Valor padrão | Observação |
+|---|---|---|
+| Velocidade | **152 mm/s** | |
+| Escuridão | **24** | confirmar valor exato exigido |
+| Modo de impressão | **Térmico direto** | diferente dos EPL (lá: Thermal transfer) — confirmar |
+| Offset Topo | 1 mm | |
+| Offset Esquerda | 1 mm | confirmar (campo estava sendo editado no print) |
+| Backfeed | Padrão | |
+| Pausar | Sem pausa | |
+| Caracteres de controle | Padrão | |
+| RTC atualizar | Horário de impressão inicial | |
+| Cancelar todos os documentos antes da impressão | desmarcado | |
+
+## Opções de gráficos
+
+| Campo | Valor padrão | Observação |
+|---|---|---|
+| Interpolação | **Clipart** (extremo direito) | |
+| Modo de transferência de imagem | Impressão direta | |
+| Tipo de gráfico | ZIP | |
+
+> **Atenção:** com Interpolação = Clipart, a **página de teste do Windows não sai** neste modelo, mas a
+> página de teste **do próprio driver** (botão "Página de teste") sai normalmente.
