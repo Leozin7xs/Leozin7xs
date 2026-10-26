@@ -38,8 +38,10 @@ internal sealed class WmiPrintQueue : IPrintQueue
     public bool CancelAllJobs(string printerName)
     {
         // Busca exata pelo nome; aspas e barras são escapadas para a consulta WQL.
+        // "SELECT *" é necessário: sem a chave (DeviceID) o objeto volta sem caminho e o
+        // Windows recusa executar métodos nele (InvalidOperationException).
         var escaped = printerName.Replace("\\", "\\\\").Replace("'", "\\'");
-        using var searcher = new ManagementObjectSearcher($"SELECT Name FROM Win32_Printer WHERE Name = '{escaped}'");
+        using var searcher = new ManagementObjectSearcher($"SELECT * FROM Win32_Printer WHERE Name = '{escaped}'");
         using var collection = searcher.Get();
 
         var printer = collection.Cast<ManagementObject>()
