@@ -139,7 +139,7 @@ sem envio de logs. Tudo roda localmente.
 
 Baixe o `WPSupportTools.exe` e dê dois cliques. Não precisa instalar nada nem usar PowerShell.
 
-- Onde baixar: no GitHub, aba **Actions** → execução mais recente de "Gerar WPSupportTools.exe" →
+- Onde baixar: **https://github.com/Leozin7xs/Leozin7xs/releases/latest** (link direto do .exe). Alternativa: aba **Actions** → execução mais recente de "Gerar WPSupportTools.exe" →
   **Artifacts** → `WPSupportTools` (vem em .zip). Versões marcadas (tag `v*`) aparecem em **Releases**.
 - Na primeira vez, o Windows pode mostrar "O Windows protegeu o computador" (o .exe ainda não é assinado):
   clique em **Mais informações → Executar assim mesmo**.

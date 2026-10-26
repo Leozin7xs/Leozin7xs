@@ -1,5 +1,6 @@
-# Gera o WPSupportTools.exe no Windows a cada envio, e publica uma versão (Release) quando
-# uma tag "v*" (ex.: v0.3.0) é criada. O .exe fica para download na página do GitHub.
+# Gera o WPSupportTools.exe no Windows a cada envio e publica na página de versões (Releases),
+# com o número de versão de Directory.Build.props (ex.: v0.3.0). Enquanto a versão não muda,
+# cada envio substitui o .exe dessa mesma versão.
 name: Gerar WPSupportTools.exe
 
 on:
@@ -33,7 +34,19 @@ jobs:
           path: publish/win-x64/WPSupportTools.exe
 
       - name: Publicar versão
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: publish/win-x64/WPSupportTools.exe
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version
+          $tag = "v$version"
+          $exe = "publish/win-x64/WPSupportTools.exe"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag $exe --target $env:GITHUB_SHA --title "WP Support Tools $version" `
+              --notes "Baixe o WPSupportTools.exe abaixo e dê dois cliques. Não precisa instalar nada."
+          } else {
+            gh release upload $tag $exe --clobber
+          }
