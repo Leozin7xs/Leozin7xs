@@ -7,12 +7,10 @@ using WPSupportTools.Core.Procedures;
 
 namespace WPSupportTools.Core.Tests;
 
-public sealed class PrintingProcedureTests : IDisposable
+public sealed class PrintingProcedureTests
 {
     private readonly FakePlatform _fake = new();
     private readonly ProcedureContext _context = new(new DelegateRunEventSink(_ => { }), isElevated: true);
-
-    public void Dispose() => _fake.Dispose();
 
     private static PrintJobInfo Job(PrintJobStatus status = PrintJobStatus.None, DateTime? at = null) =>
         new("Samsung M408x Series", status, at);
@@ -83,59 +81,52 @@ public sealed class PrintingProcedureTests : IDisposable
         Assert.Empty(_fake.Services.Calls);
     }
 
-    // ---------- Limpar fila ----------
+    // ---------- Cancelar documentos travados ----------
 
     [Fact]
-    public async Task Clear_deletes_only_spool_files_in_top_folder()
+    public async Task Cancel_touches_only_printers_with_stuck_jobs()
     {
-        _fake.Services.Spooler = FakeServices.Running() with { State = ServiceState.Stopped };
-        var spl = _fake.AddSpoolFile("00012.SPL");
-        var shd = _fake.AddSpoolFile("00012.shd");
-        var other = _fake.AddSpoolFile("leia-me.txt");
-        var sub = Directory.CreateDirectory(Path.Combine(_fake.SpoolFolder, "sub"));
-        File.WriteAllText(Path.Combine(sub.FullName, "00099.SPL"), "x");
+        _fake.Queue.InstalledPrinters.UnionWith(["Brother DCP-T820DW", "ZDesigner TLP 2844"]);
+        _fake.Jobs.Add(new PrintJobInfo("Brother DCP-T820DW", PrintJobStatus.Error | PrintJobStatus.Printing, _fake.Now));
+        _fake.Jobs.Add(new PrintJobInfo("ZDesigner TLP 2844", PrintJobStatus.Spooling, _fake.Now));
 
-        var result = await new ClearPrintQueueProcedure(_fake.Build()).ExecuteAsync(_context, default);
+        var result = await new CancelStuckJobsProcedure(_fake.Build()).ExecuteAsync(_context, default);
 
         Assert.Equal(ProcedureOutcome.Success, result.Outcome);
-        Assert.False(File.Exists(spl));
-        Assert.False(File.Exists(shd));
-        Assert.True(File.Exists(other));
-        Assert.True(File.Exists(Path.Combine(sub.FullName, "00099.SPL")));
+        Assert.Equal(["Brother DCP-T820DW"], _fake.Queue.Cancelled);
+        Assert.Single(_fake.Jobs, j => j.PrinterName == "ZDesigner TLP 2844");
     }
 
     [Fact]
-    public async Task Clear_refuses_while_spooler_is_running()
+    public async Task Cancel_fails_when_printer_cannot_be_found()
     {
-        var spl = _fake.AddSpoolFile("00012.SPL");
-        var result = await new ClearPrintQueueProcedure(_fake.Build()).ExecuteAsync(_context, default);
+        _fake.Jobs.Add(new PrintJobInfo("Impressora removida", PrintJobStatus.Error, _fake.Now));
+
+        var result = await new CancelStuckJobsProcedure(_fake.Build()).ExecuteAsync(_context, default);
 
         Assert.Equal(ProcedureOutcome.Failure, result.Outcome);
-        Assert.True(File.Exists(spl));
     }
 
     [Fact]
-    public async Task Clear_refuses_non_standard_spool_folder()
+    public async Task Cancel_does_nothing_when_spooler_is_stopped()
     {
         _fake.Services.Spooler = FakeServices.Running() with { State = ServiceState.Stopped };
-        _fake.ConfiguredSpoolFolder = Path.Combine(Path.GetTempPath(), "outra-pasta");
-        var spl = _fake.AddSpoolFile("00012.SPL");
 
-        var result = await new ClearPrintQueueProcedure(_fake.Build()).ExecuteAsync(_context, default);
+        var result = await new CancelStuckJobsProcedure(_fake.Build()).ExecuteAsync(_context, default);
 
-        Assert.Equal(ProcedureOutcome.Failure, result.Outcome);
-        Assert.True(File.Exists(spl));
+        Assert.Equal(ProcedureOutcome.Success, result.Outcome);
+        Assert.Empty(_fake.Queue.Cancelled);
     }
 
     [Fact]
-    public async Task Clear_fails_when_folder_is_missing()
+    public async Task Recheck_fails_when_a_job_is_still_stuck()
     {
-        _fake.Services.Spooler = FakeServices.Running() with { State = ServiceState.Stopped };
-        Directory.Delete(_fake.SpoolFolder);
+        _fake.Jobs.Add(new PrintJobInfo("Brother DCP-T820DW", PrintJobStatus.Error, _fake.Now));
 
-        var result = await new ClearPrintQueueProcedure(_fake.Build()).ExecuteAsync(_context, default);
+        var result = await new RecheckPrintQueueProcedure(_fake.Build()).ExecuteAsync(_context, default);
 
         Assert.Equal(ProcedureOutcome.Failure, result.Outcome);
+        Assert.Contains("Brother DCP-T820DW", result.Message);
     }
 
     // ---------- TSPrint ----------

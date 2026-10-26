@@ -38,7 +38,8 @@ public class WorkerProtocolTests
     [InlineData(new[] { 1, 2, 3 }, true)]
     [InlineData(new[] { 2 }, true)]
     [InlineData(new[] { 0 }, false)]      // verificação da fila: não exige administrador
-    [InlineData(new[] { 4, 5 }, false)]   // TSPrint: nunca roda como administrador
+    [InlineData(new[] { 4 }, false)]      // conferir fila: não exige administrador
+    [InlineData(new[] { 5, 6 }, false)]   // TSPrint: nunca roda como administrador
     [InlineData(new[] { 2, 1 }, false)]   // fora de ordem
     [InlineData(new[] { 1, 1 }, false)]   // repetido
     [InlineData(new[] { 9 }, false)]      // não existe

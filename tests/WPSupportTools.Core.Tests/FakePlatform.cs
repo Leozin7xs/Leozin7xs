@@ -3,46 +3,37 @@ using WPSupportTools.Core.Platform;
 namespace WPSupportTools.Core.Tests;
 
 /// <summary>Windows "de mentira" para testar as regras sem tocar no computador.</summary>
-internal sealed class FakePlatform : IDisposable
+internal sealed class FakePlatform
 {
     public FakeServices Services { get; } = new();
-    public List<PrintJobInfo> Jobs { get; } = [];
+    public FakePrintQueue Queue { get; } = new();
+    public List<PrintJobInfo> Jobs => Queue.Jobs;
     public FakeProcesses Processes { get; } = new();
     public DateTime Now { get; set; } = new(2026, 10, 20, 10, 0, 0);
-    public string SpoolFolder { get; } = Path.Combine(Path.GetTempPath(), "wpst-spool-" + Guid.NewGuid().ToString("N"));
-    public string? ConfiguredSpoolFolder { get; set; }
 
-    public FakePlatform()
+    public PlatformServices Build() => new(Services, Queue, Processes, () => Now);
+}
+
+internal sealed class FakePrintQueue : IPrintQueue
+{
+    public List<PrintJobInfo> Jobs { get; } = [];
+    public HashSet<string> InstalledPrinters { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<string> Cancelled { get; } = [];
+
+    /// <summary>Simula documento que continua travado mesmo após cancelar e reiniciar.</summary>
+    public bool JobsSurviveCancel { get; set; }
+
+    public IReadOnlyList<PrintJobInfo> ReadJobs() => Jobs.ToList();
+
+    public bool CancelAllJobs(string printerName)
     {
-        Directory.CreateDirectory(SpoolFolder);
-        ConfiguredSpoolFolder = SpoolFolder;
-    }
+        if (!InstalledPrinters.Contains(printerName))
+            return false;
 
-    public PlatformServices Build() => new(
-        Services, new FakePrintJobs(Jobs), new FakeSpool(this), Processes, () => Now);
-
-    public string AddSpoolFile(string name)
-    {
-        var path = Path.Combine(SpoolFolder, name);
-        File.WriteAllText(path, "x");
-        return path;
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(SpoolFolder))
-            Directory.Delete(SpoolFolder, recursive: true);
-    }
-
-    private sealed class FakePrintJobs(List<PrintJobInfo> jobs) : IPrintJobReader
-    {
-        public IReadOnlyList<PrintJobInfo> ReadJobs() => jobs;
-    }
-
-    private sealed class FakeSpool(FakePlatform owner) : ISpoolDirectory
-    {
-        public string StandardPath => owner.SpoolFolder;
-        public string? ConfiguredPath() => owner.ConfiguredSpoolFolder;
+        Cancelled.Add(printerName);
+        if (!JobsSurviveCancel)
+            Jobs.RemoveAll(j => string.Equals(j.PrinterName, printerName, StringComparison.OrdinalIgnoreCase));
+        return true;
     }
 }
 

@@ -52,34 +52,36 @@ Procedimento manual da WP, definido em
 `src/WPSupportTools.Core/Modules/Printing/Correction/PrintingFixSequence.cs`:
 
 ```
-1. Ver se a fila de impressão está travada.
-   Se SIM → parar o spooler, limpar a fila, iniciar o spooler   (net stop / net start spooler)
+1. Ver se a fila de impressão está travada (documento com erro).
+   Se SIM → cancelar os documentos da impressora travada, net stop / net start spooler, conferir se destravou.
    Se NÃO → ver se o TSPrint está aberto; se não estiver, abrir.
 ```
 
 | # | Etapa | ID (log) | Quando roda | Admin |
 |---|---|---|---|---|
 | 1 | Verificando fila de impressão | `printing.check-queue` | sempre | não |
-| 2 | Parando serviço de impressão | `printing.stop-spooler` | fila travada | sim |
-| 3 | Limpando fila de impressão | `printing.clear-queue` | fila travada | sim |
-| 4 | Iniciando serviço de impressão | `printing.start-spooler` | fila travada | sim |
-| 5 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
-| 6 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
+| 2 | Cancelando documentos travados | `printing.cancel-stuck-jobs` | fila travada | sim |
+| 3 | Parando serviço de impressão | `printing.stop-spooler` | fila travada | sim |
+| 4 | Iniciando serviço de impressão | `printing.start-spooler` | fila travada (**sempre**, se o spooler foi parado) | sim |
+| 5 | Conferindo se a fila destravou | `printing.recheck-queue` | fila travada | não |
+| 6 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
+| 7 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
 
 Etapas que não se aplicam aparecem como "não necessária". O aviso do UAC só aparece quando a fila
 está travada, uma única vez para as etapas 2–4. O TSPrint é aberto como o próprio usuário, nunca como administrador.
 
 **Fila travada** = há ao menos um documento com status de erro, offline, sem papel, bloqueado ou pedindo
 intervenção. Documento só demorando (sem erro) não conta. Spooler parado também conta como travado.
-Os valores ficam em `PrintingConstants.cs`.
 
 ### Regras de segurança por etapa
 
+- **Cancelar documentos:** igual a "Cancelar todos os documentos" na janela da fila, feito pelo próprio
+  serviço de impressão, **somente nas impressoras com documento travado**. As outras filas não são tocadas.
+  Nenhum arquivo é apagado à mão.
 - **Parar spooler:** só o serviço `Spooler`. Se outro serviço depender dele e estiver rodando, não para nada.
-- **Limpar fila:** só com o spooler parado; só na pasta padrão `%SystemRoot%\System32\spool\PRINTERS`, e só se for
-  a pasta configurada no Windows; só arquivos `.SPL` e `.SHD`; não entra em subpastas nem segue links.
-- **Iniciar spooler:** roda **mesmo se a limpeza falhar** — o spooler nunca fica desligado ao final.
+- **Iniciar spooler:** roda **mesmo se uma etapa anterior falhar** — o spooler nunca fica desligado ao final.
   Se o serviço estiver desativado no Windows, não altera; informa o suporte.
+- **Conferir fila:** se ainda sobrar documento travado, a correção falha e orienta chamar o técnico (spooler ligado).
 - **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo
   configurado em `PrintingConstants.TSPrintExecutablePath`. Configurações do TSPrint (inclusive senha) não são lidas.
 
@@ -121,11 +123,11 @@ Exemplo:
 ```
 [2026-10-20 10:41:03] [INFO ] Início: printing.fix — Corrigindo problema de impressão… (WP Support Tools v0.2.0; ...)
 [2026-10-20 10:41:03] [INFO ] Fila de impressão: 2 documento(s) na fila (Samsung M408x Series: 2 (Error, Printing)); com erro: 1.
-[2026-10-20 10:41:03] [INFO ] Etapa 1/6 [printing.check-queue] Verificando fila de impressão: OK — Fila travada (1 documento(s) com erro).
-[2026-10-20 10:41:09] [INFO ] Etapa 2/6 [printing.stop-spooler] Parando serviço de impressão: OK — Serviço de impressão parado.
-[2026-10-20 10:41:09] [INFO ] Etapa 3/6 [printing.clear-queue] Limpando fila de impressão: OK — Fila limpa (4 arquivo(s) removido(s)).
-[2026-10-20 10:41:11] [INFO ] Etapa 4/6 [printing.start-spooler] Iniciando serviço de impressão: OK — Serviço de impressão iniciado.
-[2026-10-20 10:41:11] [INFO ] Etapa 5/6 [printing.check-tsprint] Verificando o TSPrint: NÃO NECESSÁRIO — Não necessário: a fila foi reiniciada.
+[2026-10-20 10:41:03] [INFO ] Etapa 1/7 [printing.check-queue] Verificando fila de impressão: OK — Fila travada (1 documento(s) com erro).
+[2026-10-20 10:41:09] [INFO ] Etapa 2/7 [printing.cancel-stuck-jobs] Cancelando documentos travados: OK — Documentos cancelados em: Samsung M408x Series.
+[2026-10-20 10:41:09] [INFO ] Etapa 3/7 [printing.stop-spooler] Parando serviço de impressão: OK — Serviço de impressão parado.
+[2026-10-20 10:41:11] [INFO ] Etapa 4/7 [printing.start-spooler] Iniciando serviço de impressão: OK — Serviço de impressão iniciado.
+[2026-10-20 10:41:11] [INFO ] Etapa 5/7 [printing.recheck-queue] Conferindo se a fila destravou: OK — Fila destravada.
 ```
 
 ## Internet

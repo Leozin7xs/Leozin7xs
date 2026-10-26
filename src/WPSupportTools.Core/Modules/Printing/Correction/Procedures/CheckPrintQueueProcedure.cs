@@ -29,7 +29,7 @@ public sealed class CheckPrintQueueProcedure(PlatformServices platform) : IProce
                 "O serviço de impressão não está em execução. Ele será reiniciado."));
         }
 
-        var assessment = PrintQueueAnalyzer.Assess(platform.PrintJobs.ReadJobs());
+        var assessment = PrintQueueAnalyzer.Assess(platform.PrintQueue.ReadJobs());
         context.Log($"Fila de impressão: {assessment.Summary}");
         context.State.Set(PrintingState.QueueNeedsReset, assessment.IsStuck);
 

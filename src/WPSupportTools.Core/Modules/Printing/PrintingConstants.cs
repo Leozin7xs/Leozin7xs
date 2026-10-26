@@ -9,9 +9,6 @@ public static class PrintingConstants
     /// <summary>Tempo máximo para o serviço parar ou iniciar.</summary>
     public static readonly TimeSpan ServiceTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>Tipos de arquivo da fila de impressão. Somente estes são apagados.</summary>
-    public static readonly IReadOnlyList<string> SpoolFileExtensions = [".SPL", ".SHD"];
-
     /// <summary>Nome do processo do TSPrint (TSPrint.exe).</summary>
     public const string TSPrintProcessName = "TSPrint";
 

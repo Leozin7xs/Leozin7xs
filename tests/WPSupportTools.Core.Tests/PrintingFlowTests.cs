@@ -7,13 +7,17 @@ using WPSupportTools.Core.Procedures;
 namespace WPSupportTools.Core.Tests;
 
 /// <summary>O fluxo completo "Corrigir problema de impressão", com a interface sem administrador.</summary>
-public sealed class PrintingFlowTests : IDisposable
+public sealed class PrintingFlowTests
 {
     private readonly FakePlatform _fake = new();
     private readonly FakeElevatedRunner _elevated = new();
     private readonly List<RunEvent> _events = [];
 
-    public void Dispose() => _fake.Dispose();
+    public PrintingFlowTests() =>
+        _fake.Queue.InstalledPrinters.UnionWith(["Samsung M408x Series", "ZDesigner TLP 2844"]);
+
+    private void AddStuckJob() =>
+        _fake.Jobs.Add(new PrintJobInfo("Samsung M408x Series", PrintJobStatus.Error, _fake.Now));
 
     private Task<SequenceReport> RunAsync() =>
         new SequenceRunner(isElevated: false, _elevated)
@@ -21,34 +25,40 @@ public sealed class PrintingFlowTests : IDisposable
 
     private static ProcedureOutcome[] Outcomes(SequenceReport report) => report.Results.Select(r => r.Outcome).ToArray();
 
+    // Índices: 0 verificar fila, 1 cancelar, 2 parar, 3 iniciar, 4 conferir, 5 verificar TSPrint, 6 abrir TSPrint.
+
     [Fact]
-    public async Task Stuck_queue_resets_spooler_with_a_single_elevation()
+    public async Task Stuck_queue_cancels_jobs_and_restarts_spooler_with_a_single_elevation()
     {
-        _fake.Jobs.Add(new PrintJobInfo("Samsung", PrintJobStatus.Error, _fake.Now));
-        var spl = _fake.AddSpoolFile("00001.SPL");
+        AddStuckJob();
+        _fake.Jobs.Add(new PrintJobInfo("ZDesigner TLP 2844", PrintJobStatus.Printing, _fake.Now));
 
         var report = await RunAsync();
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
         Assert.Equal([[1, 2, 3]], _elevated.Requests);
+        Assert.Equal(["Samsung M408x Series"], _fake.Queue.Cancelled);
         Assert.Equal(["stop Spooler", "start Spooler"], _fake.Services.Calls);
-        Assert.False(File.Exists(spl));
+        Assert.Single(_fake.Jobs);   // a fila da etiquetadora não foi tocada
         Assert.Equal(
             [ProcedureOutcome.Success, ProcedureOutcome.Success, ProcedureOutcome.Success, ProcedureOutcome.Success,
-             ProcedureOutcome.NotNeeded, ProcedureOutcome.NotNeeded],
+             ProcedureOutcome.Success, ProcedureOutcome.NotNeeded, ProcedureOutcome.NotNeeded],
             Outcomes(report));
     }
 
     [Fact]
     public async Task Normal_queue_with_tsprint_open_changes_nothing_and_never_asks_for_admin()
     {
+        _fake.Jobs.Add(new PrintJobInfo("Samsung M408x Series", PrintJobStatus.Printing, _fake.Now.AddMinutes(-5)));
+
         var report = await RunAsync();
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
         Assert.Empty(_elevated.Requests);
         Assert.Empty(_fake.Services.Calls);
+        Assert.Empty(_fake.Queue.Cancelled);
         Assert.Empty(_fake.Processes.Started);
-        Assert.Equal(ProcedureOutcome.NotNeeded, report.Results[5].Outcome);
+        Assert.Equal(ProcedureOutcome.NotNeeded, report.Results[6].Outcome);
     }
 
     [Fact]
@@ -61,14 +71,14 @@ public sealed class PrintingFlowTests : IDisposable
         Assert.Empty(_elevated.Requests);
         // Caminho do TSPrint ainda não configurado: etapa simulada, nada aberto.
         Assert.Equal(SequenceOutcome.Simulated, report.Outcome);
-        Assert.Equal(ProcedureOutcome.NotConfigured, report.Results[5].Outcome);
+        Assert.Equal(ProcedureOutcome.NotConfigured, report.Results[6].Outcome);
         Assert.Empty(_fake.Processes.Started);
     }
 
     [Fact]
     public async Task Denied_elevation_stops_the_flow_without_changes()
     {
-        _fake.Jobs.Add(new PrintJobInfo("Samsung", PrintJobStatus.Error, _fake.Now));
+        AddStuckJob();
         _elevated.Deny = true;
 
         var report = await RunAsync();
@@ -76,15 +86,29 @@ public sealed class PrintingFlowTests : IDisposable
         Assert.Equal(SequenceOutcome.ElevationRequired, report.Outcome);
         Assert.Equal(1, report.FailedStepIndex);
         Assert.Empty(_fake.Services.Calls);
+        Assert.Empty(_fake.Queue.Cancelled);
         Assert.Equal(ProcedureOutcome.Skipped, report.Results[4].Outcome);
     }
 
     [Fact]
-    public async Task Failure_while_stopping_spooler_skips_clearing_but_still_checks_spooler_is_on()
+    public async Task Failure_while_stopping_spooler_still_leaves_spooler_on()
     {
-        _fake.Jobs.Add(new PrintJobInfo("Samsung", PrintJobStatus.Error, _fake.Now));
+        AddStuckJob();
         _fake.Services.Spooler = FakeServices.Running() with { RunningDependents = ["Fax"] };
-        var spl = _fake.AddSpoolFile("00001.SPL");
+
+        var report = await RunAsync();
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Equal(2, report.FailedStepIndex);
+        Assert.Equal(ProcedureOutcome.Success, report.Results[3].Outcome);
+        Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
+        Assert.Equal(ProcedureOutcome.Skipped, report.Results[4].Outcome);
+    }
+
+    [Fact]
+    public async Task Spooler_is_turned_back_on_even_when_cancelling_fails()
+    {
+        _fake.Jobs.Add(new PrintJobInfo("Impressora removida", PrintJobStatus.Error, _fake.Now));
 
         var report = await RunAsync();
 
@@ -93,23 +117,20 @@ public sealed class PrintingFlowTests : IDisposable
         Assert.Equal(ProcedureOutcome.Skipped, report.Results[2].Outcome);
         Assert.Equal(ProcedureOutcome.Success, report.Results[3].Outcome);
         Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
-        Assert.True(File.Exists(spl));
     }
 
     [Fact]
-    public async Task Spooler_is_turned_back_on_even_when_clearing_the_queue_fails()
+    public async Task Job_still_stuck_after_restart_ends_in_failure_with_spooler_on()
     {
-        _fake.Jobs.Add(new PrintJobInfo("Samsung", PrintJobStatus.Error, _fake.Now));
-        Directory.Delete(_fake.SpoolFolder, recursive: true);   // limpeza vai falhar
+        AddStuckJob();
+        _fake.Queue.JobsSurviveCancel = true;
 
         var report = await RunAsync();
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Equal(2, report.FailedStepIndex);
+        Assert.Equal(4, report.FailedStepIndex);
         Assert.Equal(["stop Spooler", "start Spooler"], _fake.Services.Calls);
         Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
-        Assert.Equal(ProcedureOutcome.Success, report.Results[3].Outcome);
-        Assert.Equal(ProcedureOutcome.Skipped, report.Results[4].Outcome);
     }
 
     [Fact]

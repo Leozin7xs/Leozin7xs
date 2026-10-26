@@ -15,12 +15,21 @@ public static class PrintQueueAnalyzer
         PrintJobStatus.Error | PrintJobStatus.Offline | PrintJobStatus.PaperOut |
         PrintJobStatus.Blocked | PrintJobStatus.UserInterventionRequired;
 
+    public static bool HasProblem(PrintJobInfo job) => (job.Status & ProblemFlags) != 0;
+
+    /// <summary>Impressoras com ao menos um documento travado, em ordem alfabética.</summary>
+    public static IReadOnlyList<string> PrintersWithStuckJobs(IReadOnlyList<PrintJobInfo> jobs) =>
+        jobs.Where(HasProblem).Select(j => j.PrinterName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
     public static QueueAssessment Assess(IReadOnlyList<PrintJobInfo> jobs)
     {
         if (jobs.Count == 0)
             return new QueueAssessment(false, 0, 0, "Fila vazia.");
 
-        var withProblem = jobs.Count(j => (j.Status & ProblemFlags) != 0);
+        var withProblem = jobs.Count(HasProblem);
 
         var perPrinter = string.Join("; ", jobs
             .GroupBy(j => j.PrinterName)
