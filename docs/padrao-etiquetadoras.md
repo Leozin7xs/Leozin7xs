@@ -98,7 +98,7 @@ que as configurações estão no padrão e a etiqueta continua desconfigurada. M
 | Escuridão | **24** (escala até 30) | |
 | Modo de impressão | **Térmico direto** | |
 | Offset Topo | 1 mm | |
-| Offset Esquerda | 1 mm | confirmar (campo estava sendo editado no print) |
+| Offset Esquerda | 1 mm | confirmado |
 | Backfeed | Padrão | |
 | Pausar | Sem pausa | |
 | Caracteres de controle | Padrão | |
