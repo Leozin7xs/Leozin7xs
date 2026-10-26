@@ -1,7 +1,10 @@
 # Padrão WP — Etiquetadoras Zebra
 
-Referência para o módulo "Problema na etiquetadora". O app só **confere** estes valores
-(somente leitura). Alterar configurações do driver ainda não foi autorizado.
+Referência para o módulo "Problema na etiquetadora".
+
+**Decisão do suporte:** quando uma configuração estiver fora do padrão, o app **corrige sozinho**
+(volta para o valor desta tabela) e registra no log o valor antigo e o novo. Só os campos listados
+aqui podem ser alterados; nenhum outro.
 
 Fontes: prints do driver enviados pelo suporte — ZDesigner GC420t (EPL) (a TLP2844 usa o mesmo padrão)
 e ZDesigner ZD230-203dpi ZPL. Os drivers EPL e ZPL têm telas e nomes de campos diferentes.
@@ -13,7 +16,16 @@ e ZDesigner ZD230-203dpi ZPL. Os drivers EPL e ZPL têm telas e nomes de campos 
 | ZDesigner GC420t (EPL) | EPL | este documento |
 | ZDesigner TLP 2844 | EPL | este documento |
 | ZDesigner ZD230-203dpi ZPL | ZPL | seção "Driver ZPL" abaixo |
-| ZDesigner ZD220-203dpi ZPL | ZPL | a confirmar se é igual à ZD230 |
+| ZDesigner ZD220-203dpi ZPL | ZPL | mesmo padrão da ZD230 |
+
+## Regras gerais (todos os modelos)
+
+| Regra | Valor |
+|---|---|
+| Modo de impressão | **Térmico direto** (Direct thermal) em **todos** os modelos |
+| Velocidade | **sempre a máxima** que o driver permitir |
+| Escuridão | escala até 15 → **13**; escala até 30 → **24** |
+| Tamanho | 50,8 × 25,4 mm (2 × 1 polegadas) |
 
 ---
 
@@ -24,12 +36,12 @@ e ZDesigner ZD230-203dpi ZPL. Os drivers EPL e ZPL têm telas e nomes de campos 
 | Campo | Valor padrão | Observação |
 |---|---|---|
 | No. Of Copies | 1 | |
-| Speed | **máximo do driver** | no print: 3 — confirmar se 3 é o máximo |
-| Darkness | **máximo − 3** | no print: 13 — confirmar o valor exato |
+| Speed | **máximo do driver** | |
+| Darkness | **13** (escala até 15) | |
 | Stocks | User defined | |
 | Paper Format → unidade | mm (exibição) | configurado em inch e depois trocado para mm |
 | Orientação | portrait | |
-| rotate 180° | **marcado** | obrigatório |
+| rotate 180° | **marcado** | obrigatório nos EPL (confirmado) |
 | Width × Height | **2,00 × 1,00 in** (50,8 × 25,4 mm) | |
 | Unprintable Area (Left/Right/Top/Bottom) | 0,00 | |
 
@@ -37,7 +49,7 @@ e ZDesigner ZD230-203dpi ZPL. Os drivers EPL e ZPL têm telas e nomes de campos 
 
 | Campo | Valor padrão |
 |---|---|
-| Media settings | Thermal transfer |
+| Media settings | **Direct thermal** (o print de referência estava em Thermal transfer, fora do padrão) |
 | Media type | Label with gaps |
 | Device options | None |
 | Top of form backup | marcado |
@@ -65,7 +77,7 @@ que as configurações estão no padrão e a etiqueta continua desconfigurada. M
 
 ---
 
-# Driver ZPL (ZD230-203dpi)
+# Driver ZPL (ZD230-203dpi e ZD220-203dpi)
 
 ## Config. de página
 
@@ -74,7 +86,7 @@ que as configurações estão no padrão e a etiqueta continua desconfigurada. M
 | Formato → Selecionar | Personalizar | |
 | Largura × Altura | **50,8 × 25,4 mm** | mesmo tamanho dos modelos EPL |
 | Tipo de mídia | Etiquetas com intervalos | |
-| Rotação | **0° - Retrato** | diferente dos EPL (lá: rotate 180° marcado) — confirmar |
+| Rotação | **0° - Retrato** | diferente dos EPL, confirmado |
 | Etiqueta espelho | desmarcado | |
 | Inverso | desmarcado | |
 
@@ -82,9 +94,9 @@ que as configurações estão no padrão e a etiqueta continua desconfigurada. M
 
 | Campo | Valor padrão | Observação |
 |---|---|---|
-| Velocidade | **152 mm/s** | |
-| Escuridão | **24** | confirmar valor exato exigido |
-| Modo de impressão | **Térmico direto** | diferente dos EPL (lá: Thermal transfer) — confirmar |
+| Velocidade | **152 mm/s** (máxima) | |
+| Escuridão | **24** (escala até 30) | |
+| Modo de impressão | **Térmico direto** | |
 | Offset Topo | 1 mm | |
 | Offset Esquerda | 1 mm | confirmar (campo estava sendo editado no print) |
 | Backfeed | Padrão | |
