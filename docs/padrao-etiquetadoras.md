@@ -115,3 +115,19 @@ que as configurações estão no padrão e a etiqueta continua desconfigurada. M
 
 > **Atenção:** com Interpolação = Clipart, a **página de teste do Windows não sai** neste modelo, mas a
 > página de teste **do próprio driver** (botão "Página de teste") sai normalmente.
+
+---
+
+# Como o app pode ler/alterar essas configurações (investigação)
+
+Relatório de 26/10, PC com **ZDesigner ZD230-203dpi ZPL**, driver **8.6.4.23827**, porta USB001:
+
+- **Legível pelo Windows (formato padrão):** tamanho da etiqueta, orientação, resolução (203 dpi), cópias.
+- **Não legível diretamente:** escuridão, velocidade, modo de impressão, offsets, interpolação etc.
+  Ficam num bloco interno do driver (~11 KB, assinatura "Nice") dentro da configuração da impressora.
+- Preferências do usuário e padrão da impressora estavam idênticos.
+- **Atenção:** nesse PC a etiqueta estava configurada como **104,0 × 50,8 mm** (4 × 2 pol), não 50,8 × 25,4 mm.
+
+Abordagem proposta ("configuração modelo"): um técnico deixa uma impressora de cada modelo exatamente no
+padrão; o app guarda essa configuração completa e, nas unidades, compara e reaplica pelo próprio Windows,
+somente quando o modelo **e a versão do driver** forem iguais aos do modelo guardado.
