@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.3.0):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> **Status atual (v0.4.0):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
 > Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
 
 ---
@@ -93,6 +93,28 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado tam
 - Não há novas tentativas nem ações alternativas automáticas.
 - Cada etapa tem tempo limite; estourar o tempo conta como falha.
 - A janela não pode ser fechada no meio da manutenção (para não deixar o spooler parado).
+
+## Etiquetadora (botão "Problema na etiquetadora")
+
+A funcionária escolhe **"Não sai nada"** ou **"Sai desconfigurada"**. Padrão WP em `docs/padrao-etiquetadoras.md`.
+
+**Escolha da etiquetadora:** só drivers `ZDesigner`. Ignora cópias offline; se houver mais de uma ligada,
+usa a padrão do Windows; senão não adivinha e pede o técnico. Se todas estiverem offline, avisa
+"desligada ou desconectada" e não faz mais nada.
+
+| "Não sai nada" | "Sai desconfigurada" |
+|---|---|
+| 1. Localizando a etiquetadora | 1. Localizando a etiquetadora |
+| 2. Fila **só da etiquetadora** travada? | 2. Conferindo tamanho (50,8 × 25,4 mm, retrato) |
+| 3–6. Se sim: cancelar, parar/iniciar spooler, conferir | 3. Se fora do padrão: corrigir nas preferências do usuário |
+| 7–8. Se não: TSPrint aberto? | 4. Calibrar (ZPL `~JC` / EPL `xa`) |
+| 9. Etiqueta de teste | 5. Etiqueta de teste |
+
+A etiqueta de teste é enviada direto à impressora (RAW), porque a página de teste do Windows sai em branco
+no padrão WP. Se a etiqueta de teste sai e a do UniLab não, o problema está no TSPrint/UniLab.
+
+**Ainda não feito:** conferir/corrigir escuridão, velocidade, modo, offsets e gráficos (depende da
+"configuração modelo" — ver docs). Comandos de calibração a validar com cada modelo.
 
 ## Elevação de privilégios (UAC)
 

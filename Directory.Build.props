@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- Versão única da aplicação: aparece na interface e em todos os registros de log. -->
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <Company>Grupo WP</Company>
     <Product>WP Support Tools</Product>
     <Copyright>© Grupo WP</Copyright>

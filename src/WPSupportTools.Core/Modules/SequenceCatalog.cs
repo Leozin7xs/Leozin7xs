@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using WPSupportTools.Core.Modules.Printing.Correction;
+using WPSupportTools.Core.Modules.Printing.Labels;
 using WPSupportTools.Core.Procedures;
 
 namespace WPSupportTools.Core.Modules;
@@ -14,6 +15,8 @@ public static class SequenceCatalog
         new Dictionary<string, Func<MaintenanceSequence>>(StringComparer.Ordinal)
         {
             [PrintingFixSequence.Id] = PrintingFixSequence.Create,
+            [LabelSequences.NotPrintingId] = LabelSequences.CreateNotPrinting,
+            [LabelSequences.MisconfiguredId] = LabelSequences.CreateMisconfigured,
         };
 
     public static IEnumerable<string> Ids => Factories.Keys;

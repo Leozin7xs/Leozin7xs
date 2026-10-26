@@ -137,8 +137,14 @@ public sealed class PrintingFlowTests
     public void Printing_sequence_is_in_the_catalog_and_every_action_points_to_one()
     {
         Assert.True(SequenceCatalog.TryCreate(PrintingFixSequence.Id, out _));
-        foreach (var action in ModuleCatalog.All.SelectMany(m => m.Actions))
+        var actions = ModuleCatalog.All.SelectMany(m => m.Actions)
+            .SelectMany(a => a.Choices ?? [a])
+            .ToList();
+        foreach (var action in actions)
+        {
+            Assert.NotNull(action.SequenceId);
             Assert.True(SequenceCatalog.TryCreate(action.SequenceId, out _), action.SequenceId);
+        }
     }
 
     [Theory]

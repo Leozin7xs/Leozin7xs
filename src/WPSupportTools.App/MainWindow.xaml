@@ -105,24 +105,53 @@
             <!-- ======================= Tela inicial ======================= -->
             <StackPanel VerticalAlignment="Center"
                         Visibility="{Binding CurrentScreen, Converter={StaticResource ScreenVisibility}, ConverterParameter=Home}">
+                <TextBlock Style="{StaticResource Heading}" Text="Qual é o problema?" Margin="0,0,0,20" />
                 <ItemsControl ItemsSource="{Binding Actions}" Focusable="False">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Margin="0,0,0,24">
-                                <Button Style="{StaticResource HeroButton}"
+                            <StackPanel Margin="0,0,0,22">
+                                <Button Style="{StaticResource HeroButton}" HorizontalContentAlignment="Left"
                                         Command="{Binding DataContext.RunActionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         CommandParameter="{Binding}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Style="{StaticResource Icon}" Text="{Binding IconGlyph}" FontSize="26" Margin="0,0,14,0" />
+                                        <TextBlock Style="{StaticResource Icon}" Text="{Binding IconGlyph}" FontSize="26" Margin="0,0,16,0" />
                                         <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <TextBlock Style="{StaticResource Body}" Text="{Binding Description}"
-                                           TextAlignment="Center" Margin="12,16,12,0" />
+                                <TextBlock Style="{StaticResource Body}" Text="{Binding Description}" Margin="4,8,4,0" />
                             </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+            </StackPanel>
+
+            <!-- ======================= Pergunta (ex.: etiquetadora) ======================= -->
+            <StackPanel VerticalAlignment="Center"
+                        Visibility="{Binding CurrentScreen, Converter={StaticResource ScreenVisibility}, ConverterParameter=Choose}">
+                <TextBlock Style="{StaticResource Heading}" Text="{Binding ChoiceAction.Title}" />
+                <TextBlock Style="{StaticResource Body}" Text="O que está acontecendo?" Margin="0,6,0,20" />
+                <ItemsControl ItemsSource="{Binding ChoiceAction.Choices}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Style="{StaticResource SecondaryButton}" Margin="0,0,0,12" Padding="20,16"
+                                    HorizontalContentAlignment="Left"
+                                    Command="{Binding DataContext.RunActionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" Text="{Binding IconGlyph}" FontSize="22"
+                                               Foreground="{StaticResource AccentBrush}" Margin="0,0,16,0" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}" FontSize="16" />
+                                        <TextBlock Text="{Binding Description}" FontSize="12" FontWeight="Normal"
+                                                   Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Style="{StaticResource LinkButton}" Content="Voltar ao início" Command="{Binding BackHomeCommand}"
+                        HorizontalAlignment="Center" Margin="0,8,0,0" />
             </StackPanel>
 
             <!-- ============ Execução / Concluído / Falha ============ -->
@@ -154,7 +183,7 @@
                             <TextBlock Style="{StaticResource Body}" Margin="0,6,0,0"
                                        Text="Os procedimentos de manutenção foram executados." />
                             <TextBlock Style="{StaticResource Body}" Margin="0,8,0,0" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextBrush}" Text="Tente imprimir novamente." />
+                                       Foreground="{StaticResource TextBrush}" Text="{Binding CompletionHint}" />
                         </StackPanel>
                     </DockPanel>
                 </Border>

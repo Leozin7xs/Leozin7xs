@@ -40,9 +40,9 @@ public static class PrintingFixSequence
                     : null)),
         ]);
 
-    private static string? OnlyIfQueueStuck(RunState state) =>
+    internal static string? OnlyIfQueueStuck(RunState state) =>
         state.IsSet(PrintingState.QueueNeedsReset) ? null : "Não necessário: a fila não está travada.";
 
-    private static string? OnlyIfQueueNormal(RunState state) =>
+    internal static string? OnlyIfQueueNormal(RunState state) =>
         state.IsSet(PrintingState.QueueNeedsReset) ? "Não necessário: a fila foi reiniciada." : null;
 }

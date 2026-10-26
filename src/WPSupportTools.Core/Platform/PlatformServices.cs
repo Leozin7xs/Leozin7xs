@@ -5,11 +5,19 @@ public sealed record PlatformServices(
     IWindowsServices Services,
     IPrintQueue PrintQueue,
     IProcessLauncher Processes,
-    Func<DateTime> Now)
+    Func<DateTime> Now,
+    IPrinterCatalog Printers,
+    IPrinterPreferences Preferences,
+    IRawPrinter Raw)
 {
+    private static readonly WinSpool Spool = new();
+
     public static PlatformServices Windows { get; } = new(
         new WindowsServices(),
         new WmiPrintQueue(),
         new WindowsProcessLauncher(),
-        () => DateTime.Now);
+        () => DateTime.Now,
+        new WmiPrinterCatalog(),
+        Spool,
+        Spool);
 }

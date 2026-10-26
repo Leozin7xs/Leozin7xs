@@ -14,6 +14,7 @@ namespace WPSupportTools.App.ViewModels;
 public enum Screen
 {
     Home,
+    Choose,
     Running,
     Completed,
     Failed,
@@ -34,6 +35,8 @@ public sealed class MainViewModel : ObservableObject
     private string _runTitle = "";
     private string _failureTitle = "";
     private string _failureMessage = "";
+    private SupportAction? _choiceAction;
+    private string _completionHint = "";
 
     public MainViewModel(IAppLog log, ISequenceExecutor executor)
     {
@@ -43,7 +46,7 @@ public sealed class MainViewModel : ObservableObject
 
         Actions = ModuleCatalog.All.SelectMany(m => m.Actions).ToList();
 
-        RunActionCommand = new RelayCommand(p => _ = RunAsync((SupportAction)p!), p => p is SupportAction && !IsBusy);
+        RunActionCommand = new RelayCommand(p => StartAction((SupportAction)p!), p => p is SupportAction && !IsBusy);
         ResolvedCommand = new RelayCommand(() => GiveFeedback(resolved: true));
         NotResolvedCommand = new RelayCommand(() => GiveFeedback(resolved: false));
         BackHomeCommand = new RelayCommand(() => CurrentScreen = Screen.Home, () => !IsBusy);
@@ -82,6 +85,20 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _isSimulation, value);
     }
 
+    /// <summary>Ação cuja pergunta está na tela (ex.: "Problema na etiquetadora").</summary>
+    public SupportAction? ChoiceAction
+    {
+        get => _choiceAction;
+        private set => SetProperty(ref _choiceAction, value);
+    }
+
+    /// <summary>Orientação final da ação executada (ex.: "Tente imprimir novamente.").</summary>
+    public string CompletionHint
+    {
+        get => _completionHint;
+        private set => SetProperty(ref _completionHint, value);
+    }
+
     public string RunTitle
     {
         get => _runTitle;
@@ -107,11 +124,24 @@ public sealed class MainViewModel : ObservableObject
     public ICommand OpenLogsCommand { get; }
     public ICommand CloseCommand { get; }
 
+    private void StartAction(SupportAction action)
+    {
+        if (action.Choices is { Count: > 0 })
+        {
+            ChoiceAction = action;
+            CurrentScreen = Screen.Choose;
+            return;
+        }
+
+        _ = RunAsync(action);
+    }
+
     private async Task RunAsync(SupportAction action)
     {
-        if (IsBusy || !SequenceCatalog.TryCreate(action.SequenceId, out var sequence))
+        if (IsBusy || action.SequenceId is null || !SequenceCatalog.TryCreate(action.SequenceId, out var sequence))
             return;
 
+        CompletionHint = action.CompletionHint;
         _sequence = sequence;
         IsBusy = true;
         IsSimulation = false;

@@ -7,7 +7,9 @@ namespace WPSupportTools.Core.Modules.Printing.Correction.Procedures;
 /// Passo 1 do procedimento WP: ver se a fila de impressão está travada. Somente leitura.
 /// Se o serviço de impressão estiver parado, também segue pelo caminho de reinício.
 /// </summary>
-public sealed class CheckPrintQueueProcedure(PlatformServices platform) : IProcedure
+/// <param name="onlyPrinter">Se informado, considera somente a fila desta impressora (ex.: a etiquetadora).</param>
+public sealed class CheckPrintQueueProcedure(PlatformServices platform, Func<RunState, string?>? onlyPrinter = null)
+    : IProcedure
 {
     public string Id => "printing.check-queue";
     public string DisplayName => "Verificando fila de impressão";
@@ -29,7 +31,11 @@ public sealed class CheckPrintQueueProcedure(PlatformServices platform) : IProce
                 "O serviço de impressão não está em execução. Ele será reiniciado."));
         }
 
-        var assessment = PrintQueueAnalyzer.Assess(platform.PrintQueue.ReadJobs());
+        var jobs = platform.PrintQueue.ReadJobs();
+        if (onlyPrinter?.Invoke(context.State) is { } printer)
+            jobs = jobs.Where(j => string.Equals(j.PrinterName, printer, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var assessment = PrintQueueAnalyzer.Assess(jobs);
         context.Log($"Fila de impressão: {assessment.Summary}");
         context.State.Set(PrintingState.QueueNeedsReset, assessment.IsStuck);
 
