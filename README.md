@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.2.0):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> **Status atual (v0.3.0):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
 > Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
 
 ---
@@ -135,7 +135,17 @@ Exemplo:
 O aplicativo **não faz nenhuma conexão de rede**: sem telemetria, sem verificação de atualização,
 sem envio de logs. Tudo roda localmente.
 
-## Compilar, testar e gerar o .exe
+## Como abrir (usuário / técnico)
+
+Baixe o `WPSupportTools.exe` e dê dois cliques. Não precisa instalar nada nem usar PowerShell.
+
+- Onde baixar: no GitHub, aba **Actions** → execução mais recente de "Gerar WPSupportTools.exe" →
+  **Artifacts** → `WPSupportTools` (vem em .zip). Versões marcadas (tag `v*`) aparecem em **Releases**.
+- Na primeira vez, o Windows pode mostrar "O Windows protegeu o computador" (o .exe ainda não é assinado):
+  clique em **Mais informações → Executar assim mesmo**.
+- Para as unidades: copiar para `C:\Program Files\WP Support Tools\` e criar um atalho na área de trabalho.
+
+## Compilar, testar e gerar o .exe (desenvolvimento)
 
 Pré-requisito (somente na máquina de desenvolvimento): [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
@@ -145,7 +155,8 @@ dotnet run --project src\WPSupportTools.App  # abrir o app (Windows)
 powershell -File build\publish.ps1           # gera publish\win-x64\WPSupportTools.exe
 ```
 
-O `.exe` gerado é *self-contained* (≈60 MB) e roda em Windows 10/11 x64 sem instalar o .NET.
+O `.exe` gerado é *self-contained* (≈62 MB) e roda em Windows 10/11 x64 sem instalar o .NET.
+O GitHub também gera o `.exe` automaticamente a cada envio (`.github/workflows/build.yml`).
 
 ## Como um procedimento real será implementado
 
