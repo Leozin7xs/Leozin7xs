@@ -3,7 +3,8 @@ namespace WPSupportTools.Core.Procedures;
 /// <summary>Uma lista ordenada e fixa de procedimentos, executada sempre da mesma forma.</summary>
 public sealed class MaintenanceSequence
 {
-    public MaintenanceSequence(string id, string title, IReadOnlyList<IProcedure> steps)
+    public MaintenanceSequence(
+        string id, string title, IReadOnlyList<IProcedure> steps, IReadOnlyCollection<string>? transferableStateKeys = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -17,6 +18,7 @@ public sealed class MaintenanceSequence
         Id = id;
         Title = title;
         Steps = steps;
+        TransferableStateKeys = new HashSet<string>(transferableStateKeys ?? [], StringComparer.Ordinal);
     }
 
     public string Id { get; }
@@ -27,4 +29,10 @@ public sealed class MaintenanceSequence
     public IReadOnlyList<IProcedure> Steps { get; }
 
     public bool RequiresElevation => Steps.Any(s => s.RequiresElevation);
+
+    /// <summary>
+    /// Informações (textos do <see cref="RunState"/>) que podem ser enviadas ao processo de administrador,
+    /// ex.: quais impressoras estão travadas. Qualquer outra chave é recusada por ele.
+    /// </summary>
+    public IReadOnlySet<string> TransferableStateKeys { get; }
 }

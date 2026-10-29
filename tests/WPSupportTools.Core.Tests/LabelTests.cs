@@ -177,9 +177,44 @@ public sealed class LabelTests
             .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
-        Assert.Equal([[2, 3, 4]], elevated.Requests);
+        Assert.Equal([[2, 3, 4, 5]], elevated.Requests);
         Assert.Equal([Zd230], _fake.Queue.Cancelled);
         Assert.Single(_fake.Raw.Sent);
+    }
+
+    [Fact]
+    public async Task Not_printing_treats_any_waiting_label_job_as_stuck_and_touches_only_the_label_printer()
+    {
+        _fake.Printers.Add(Printer(Zd230, Zd230));
+        _fake.Queue.InstalledPrinters.UnionWith([Zd230, "Brother DCP-T820DW"]);
+        _fake.Jobs.Add(new PrintJobInfo(Zd230, PrintJobStatus.None, _fake.Now));                  // parado, sem erro
+        _fake.Jobs.Add(new PrintJobInfo("Brother DCP-T820DW", PrintJobStatus.Error, _fake.Now));  // outra impressora
+        var elevated = new RecordingElevatedRunner();
+
+        var report = await new SequenceRunner(isElevated: false, elevated)
+            .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal([Zd230], _fake.Queue.Cancelled.Distinct());
+        Assert.Single(_fake.Jobs, j => j.PrinterName == "Brother DCP-T820DW");
+    }
+
+    [Fact]
+    public async Task Not_printing_reports_failure_when_label_queue_is_not_cleared()
+    {
+        _fake.Printers.Add(Printer(Zd230, Zd230));
+        _fake.Queue.InstalledPrinters.Add(Zd230);
+        _fake.Queue.JobsSurviveCancel = true;
+        _fake.Jobs.Add(new PrintJobInfo(Zd230, PrintJobStatus.Error, _fake.Now));
+
+        var report = await new SequenceRunner(isElevated: false, new RecordingElevatedRunner())
+            .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Equal(6, report.FailedStepIndex);
+        Assert.Contains("não foi limpa", report.Results[6].Message);
+        Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
+        Assert.Empty(_fake.Raw.Sent);   // não manda etiqueta de teste para fila travada
     }
 
     [Fact]
@@ -194,9 +229,10 @@ public sealed class LabelTests
     }
 
     [Theory]
-    [InlineData(new[] { 2, 3, 4 }, true)]
+    [InlineData(new[] { 2, 3, 4, 5 }, true)]
     [InlineData(new[] { 0 }, false)]
-    [InlineData(new[] { 8 }, false)]
+    [InlineData(new[] { 6 }, false)]
+    [InlineData(new[] { 9 }, false)]
     public void Elevated_process_accepts_only_queue_steps_of_label_sequence(int[] steps, bool expected)
     {
         Assert.True(SequenceCatalog.TryCreate(LabelSequences.NotPrintingId, out var sequence));
@@ -210,10 +246,11 @@ public sealed class LabelTests
         public List<int[]> Requests { get; } = [];
 
         public async Task<IReadOnlyList<ProcedureResult>> RunAsync(
-            MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IRunEventSink sink, CancellationToken ct)
+            MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IReadOnlyDictionary<string, string> state,
+            IRunEventSink sink, CancellationToken ct)
         {
             Requests.Add([.. stepIndices]);
-            return await new SequenceRunner(isElevated: true).RunStepsAsync(sequence, stepIndices, sink, ct);
+            return await new SequenceRunner(isElevated: true).RunStepsAsync(sequence, stepIndices, sink, ct, state);
         }
     }
 }

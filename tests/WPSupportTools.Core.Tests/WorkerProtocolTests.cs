@@ -7,11 +7,13 @@ namespace WPSupportTools.Core.Tests;
 public class WorkerProtocolTests
 {
     private const string Pipe = "WPSupportTools-00000000000000000000000000000000";
+    private const string Empty = "e30=";   // "{}" em base64
 
     [Fact]
     public void Worker_arguments_round_trip()
     {
-        var original = new WorkerArguments("printing.fix", [1, 2, 3], WorkerArguments.NewPipeName(), 4242);
+        var original = new WorkerArguments("printing.fix", [1, 2, 3], WorkerArguments.NewPipeName(), 4242,
+            new Dictionary<string, string> { ["printing.target-printers"] = "Brother DCP-T820DW Printer (Copiar 1)\nZDesigner TLP 2844" });
 
         Assert.True(WorkerArguments.IsWorkerInvocation(original.ToArgumentList()));
         Assert.True(WorkerArguments.TryParse(original.ToArgumentList(), out var parsed));
@@ -19,27 +21,30 @@ public class WorkerProtocolTests
         Assert.Equal(original.StepIndices, parsed.StepIndices);
         Assert.Equal(original.PipeName, parsed.PipeName);
         Assert.Equal(original.ParentProcessId, parsed.ParentProcessId);
+        Assert.Equal(original.State, parsed.State);
     }
 
     [Theory]
-    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--pipe", Pipe)]
-    [InlineData("--worker", "--sequence", "printing.fix;calc", "--steps", "1", "--pipe", Pipe, "--parent", "1")]
-    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1;del", "--pipe", Pipe, "--parent", "1")]
-    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "", "--pipe", Pipe, "--parent", "1")]
-    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--pipe", "OutroPipe", "--parent", "1")]
-    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--pipe", Pipe, "--parent", "-1")]
-    [InlineData("--worker", "--steps", "1", "--sequence", "printing.fix", "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--state", Empty, "--pipe", Pipe)]
+    [InlineData("--worker", "--sequence", "printing.fix;calc", "--steps", "1", "--state", Empty, "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1;del", "--state", Empty, "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "", "--state", Empty, "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--state", "não-é-base64!", "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--state", "W10=", "--pipe", Pipe, "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--state", Empty, "--pipe", "OutroPipe", "--parent", "1")]
+    [InlineData("--worker", "--sequence", "printing.fix", "--steps", "1", "--state", Empty, "--pipe", Pipe, "--parent", "-1")]
+    [InlineData("--worker", "--steps", "1", "--sequence", "printing.fix", "--state", Empty, "--pipe", Pipe, "--parent", "1")]
     public void Malformed_worker_arguments_are_rejected(params string[] args)
     {
         Assert.False(WorkerArguments.TryParse(args, out _));
     }
 
     [Theory]
-    [InlineData(new[] { 1, 2, 3 }, true)]
+    [InlineData(new[] { 1, 2, 3, 4 }, true)]
     [InlineData(new[] { 2 }, true)]
     [InlineData(new[] { 0 }, false)]      // verificação da fila: não exige administrador
-    [InlineData(new[] { 4 }, false)]      // conferir fila: não exige administrador
-    [InlineData(new[] { 5, 6 }, false)]   // TSPrint: nunca roda como administrador
+    [InlineData(new[] { 5 }, false)]      // conferir fila: não exige administrador
+    [InlineData(new[] { 6, 7 }, false)]   // TSPrint: nunca roda como administrador
     [InlineData(new[] { 2, 1 }, false)]   // fora de ordem
     [InlineData(new[] { 1, 1 }, false)]   // repetido
     [InlineData(new[] { 9 }, false)]      // não existe
@@ -47,6 +52,16 @@ public class WorkerProtocolTests
     {
         Assert.True(Modules.SequenceCatalog.TryCreate("printing.fix", out var sequence));
         Assert.Equal(expected, new WorkerArguments("printing.fix", steps, Pipe, 1).StepsAreValidFor(sequence));
+    }
+
+    [Fact]
+    public void Elevated_process_refuses_state_keys_the_sequence_does_not_allow()
+    {
+        Assert.True(Modules.SequenceCatalog.TryCreate("printing.fix", out var sequence));
+        var args = new WorkerArguments("printing.fix", [1], Pipe, 1,
+            new Dictionary<string, string> { ["qualquer.coisa"] = "valor" });
+
+        Assert.False(args.StepsAreValidFor(sequence));
     }
 
     [Fact]

@@ -9,7 +9,7 @@ namespace WPSupportTools.Core.Modules.Printing.Correction;
 /// <code>
 /// 1. Ver se a fila de impressão está travada (documento com erro).
 ///    Se SIM: cancelar os documentos da fila travada, parar e iniciar o spooler
-///            (net stop / net start spooler) e conferir se destravou.
+///            (net stop / net start spooler), cancelar o que voltar e conferir se a fila ficou vazia.
 ///    Se NÃO: ver se o TSPrint está aberto; se não estiver, abrir.
 /// </code>
 /// Para mudar a ordem, adicionar ou remover etapas, altere apenas a lista abaixo.
@@ -26,10 +26,11 @@ public static class PrintingFixSequence
         [
             new CheckPrintQueueProcedure(platform),
 
-            // Fila travada (etapas 2 a 4: um único pedido de administrador)
+            // Fila travada (etapas 2 a 5: um único pedido de administrador)
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new StopPrintSpoolerProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), OnlyIfQueueStuck),
+            new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), OnlyIfQueueStuck),
             new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), OnlyIfQueueStuck),
 
             // Fila normal
@@ -38,7 +39,8 @@ public static class PrintingFixSequence
                 s => OnlyIfQueueNormal(s) ?? (s.IsSet(PrintingState.TSPrintRunning)
                     ? "Não necessário: o TSPrint já está aberto."
                     : null)),
-        ]);
+        ],
+        transferableStateKeys: [PrintingState.TargetPrinters]);
 
     internal static string? OnlyIfQueueStuck(RunState state) =>
         state.IsSet(PrintingState.QueueNeedsReset) ? null : "Não necessário: a fila não está travada.";

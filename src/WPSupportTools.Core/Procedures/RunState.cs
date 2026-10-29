@@ -16,4 +16,14 @@ public sealed class RunState
     public void SetText(string key, string value) => _texts[key] = value;
 
     public string? GetText(string key) => _texts.GetValueOrDefault(key);
+
+    /// <summary>Textos selecionados para enviar ao processo de administrador.</summary>
+    public IReadOnlyDictionary<string, string> TextsFor(IEnumerable<string> keys) =>
+        keys.Where(_texts.ContainsKey).ToDictionary(k => k, k => _texts[k], StringComparer.Ordinal);
+
+    public void SetTexts(IReadOnlyDictionary<string, string> texts)
+    {
+        foreach (var (key, value) in texts)
+            _texts[key] = value;
+    }
 }

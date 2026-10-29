@@ -63,7 +63,8 @@ public sealed class SequenceRunner
             if (step.RequiresElevation && !_isElevated && _elevatedRunner is not null)
             {
                 var block = ElevatedBlockFrom(sequence, i, context.State, afterFailure: failedIndex is not null);
-                var blockResults = await _elevatedRunner.RunAsync(sequence, block, sink, cancellationToken);
+                var state = context.State.TextsFor(sequence.TransferableStateKeys);
+                var blockResults = await _elevatedRunner.RunAsync(sequence, block, state, sink, cancellationToken);
                 for (var k = 0; k < block.Count; k++)
                 {
                     var result = k < blockResults.Count
@@ -92,9 +93,11 @@ public sealed class SequenceRunner
     /// </summary>
     public async Task<IReadOnlyList<ProcedureResult>> RunStepsAsync(
         MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IRunEventSink sink,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, IReadOnlyDictionary<string, string>? state = null)
     {
         var context = new ProcedureContext(sink, _isElevated);
+        if (state is not null)
+            context.State.SetTexts(state);
         var results = new List<ProcedureResult>(stepIndices.Count);
         var failed = false;
 

@@ -14,6 +14,12 @@ internal sealed class FakePlatform
     public FakePreferences Preferences { get; } = new();
     public FakeRawPrinter Raw { get; } = new();
 
+    public FakePlatform()
+    {
+        Modules.Printing.PrintingConstants.SpoolerSettleDelay = TimeSpan.Zero;
+        Services.OnStart = Queue.ReloadAfterRestart;
+    }
+
     public PlatformServices Build() =>
         new(Services, Queue, Processes, () => Now, new FakeCatalog(Printers), Preferences, Raw);
 
@@ -72,6 +78,17 @@ internal sealed class FakePrintQueue : IPrintQueue
     /// <summary>Simula documento que continua travado mesmo após cancelar e reiniciar.</summary>
     public bool JobsSurviveCancel { get; set; }
 
+    /// <summary>Simula documento preso em "excluindo" que volta quando o spooler reinicia.</summary>
+    public bool CancelledJobsReturnOnRestart { get; set; }
+
+    private readonly List<PrintJobInfo> _pendingDeletion = [];
+
+    public void ReloadAfterRestart()
+    {
+        Jobs.AddRange(_pendingDeletion);
+        _pendingDeletion.Clear();
+    }
+
     public IReadOnlyList<PrintJobInfo> ReadJobs() => Jobs.ToList();
 
     public bool CancelAllJobs(string printerName)
@@ -80,8 +97,13 @@ internal sealed class FakePrintQueue : IPrintQueue
             return false;
 
         Cancelled.Add(printerName);
-        if (!JobsSurviveCancel)
-            Jobs.RemoveAll(j => string.Equals(j.PrinterName, printerName, StringComparison.OrdinalIgnoreCase));
+        if (JobsSurviveCancel)
+            return true;
+
+        var removed = Jobs.Where(j => string.Equals(j.PrinterName, printerName, StringComparison.OrdinalIgnoreCase)).ToList();
+        Jobs.RemoveAll(removed.Contains);
+        if (CancelledJobsReturnOnRestart && Cancelled.Count == 1)
+            _pendingDeletion.AddRange(removed);
         return true;
     }
 }
@@ -91,6 +113,7 @@ internal sealed class FakeServices : IWindowsServices
     public ServiceInfo? Spooler { get; set; } = Running();
     public List<string> Calls { get; } = [];
     public bool TimeOut { get; set; }
+    public Action? OnStart { get; set; }
 
     public static ServiceInfo Running() => new("Spooler", "Spooler de Impressão", ServiceState.Running, false, []);
 
@@ -111,6 +134,7 @@ internal sealed class FakeServices : IWindowsServices
         if (TimeOut)
             throw new TimeoutException();
         Spooler = Spooler! with { State = ServiceState.Running };
+        OnStart?.Invoke();
     }
 }
 

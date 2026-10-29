@@ -26,18 +26,21 @@ public static class LabelSequences
         "Verificando a etiquetadora…",
         [
             new LocateLabelPrinterProcedure(platform),
-            new CheckPrintQueueProcedure(platform, LabelPrinter),
+            // A funcionária já disse que "não sai nada": qualquer documento parado na fila da Zebra conta.
+            new CheckPrintQueueProcedure(platform, LabelPrinter, anyPendingJobIsStuck: true),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new StopPrintSpoolerProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
-            new ConditionalProcedure(new RecheckPrintQueueProcedure(platform, LabelPrinter), PrintingFixSequence.OnlyIfQueueStuck),
+            new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), PrintingFixSequence.OnlyIfQueueStuck),
+            new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new CheckTSPrintProcedure(platform), PrintingFixSequence.OnlyIfQueueNormal),
             new ConditionalProcedure(new StartTSPrintProcedure(platform),
                 s => PrintingFixSequence.OnlyIfQueueNormal(s) ?? (s.IsSet(PrintingState.TSPrintRunning)
                     ? "Não necessário: o TSPrint já está aberto."
                     : null)),
             new PrintTestLabelProcedure(platform),
-        ]);
+        ],
+        transferableStateKeys: [PrintingState.TargetPrinters]);
 
     /// <summary>
     /// "Sai desconfigurada": localizar a Zebra, conferir/corrigir tamanho e orientação,

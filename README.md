@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.4.0):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> **Status atual (v0.4.1):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
 > Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
 
 ---
@@ -63,12 +63,14 @@ Procedimento manual da WP, definido em
 | 2 | Cancelando documentos travados | `printing.cancel-stuck-jobs` | fila travada | sim |
 | 3 | Parando serviço de impressão | `printing.stop-spooler` | fila travada | sim |
 | 4 | Iniciando serviço de impressão | `printing.start-spooler` | fila travada (**sempre**, se o spooler foi parado) | sim |
-| 5 | Conferindo se a fila destravou | `printing.recheck-queue` | fila travada | não |
-| 6 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
-| 7 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
+| 5 | Cancelando documentos restantes | `printing.cancel-remaining-jobs` | fila travada | sim |
+| 6 | Conferindo se a fila destravou | `printing.recheck-queue` | fila travada | não |
+| 7 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
+| 8 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
 
 Etapas que não se aplicam aparecem como "não necessária". O aviso do UAC só aparece quando a fila
-está travada, uma única vez para as etapas 2–4. O TSPrint é aberto como o próprio usuário, nunca como administrador.
+está travada, uma única vez para as etapas 2–5. O processo de administrador recebe a lista das impressoras
+travadas e mexe somente nelas. O TSPrint é aberto como o próprio usuário, nunca como administrador.
 
 **Fila travada** = há ao menos um documento com status de erro, offline, sem papel, bloqueado ou pedindo
 intervenção. Documento só demorando (sem erro) não conta. Spooler parado também conta como travado.
@@ -81,7 +83,9 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado tam
 - **Parar spooler:** só o serviço `Spooler`. Se outro serviço depender dele e estiver rodando, não para nada.
 - **Iniciar spooler:** roda **mesmo se uma etapa anterior falhar** — o spooler nunca fica desligado ao final.
   Se o serviço estiver desativado no Windows, não altera; informa o suporte.
-- **Conferir fila:** se ainda sobrar documento travado, a correção falha e orienta chamar o técnico (spooler ligado).
+- **Cancelar restantes:** documentos presos em "excluindo" podem voltar quando o spooler reinicia; são cancelados de novo.
+- **Conferir fila:** a fila das impressoras tratadas tem que ficar **vazia**; se sobrar qualquer documento,
+  a correção falha e orienta chamar o técnico (spooler ligado).
 - **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo
   configurado em `PrintingConstants.TSPrintExecutablePath`. Configurações do TSPrint (inclusive senha) não são lidas.
 
@@ -105,10 +109,10 @@ usa a padrão do Windows; senão não adivinha e pede o técnico. Se todas estiv
 | "Não sai nada" | "Sai desconfigurada" |
 |---|---|
 | 1. Localizando a etiquetadora | 1. Localizando a etiquetadora |
-| 2. Fila **só da etiquetadora** travada? | 2. Conferindo tamanho (50,8 × 25,4 mm, retrato) |
-| 3–6. Se sim: cancelar, parar/iniciar spooler, conferir | 3. Se fora do padrão: corrigir nas preferências do usuário |
-| 7–8. Se não: TSPrint aberto? | 4. Calibrar (ZPL `~JC` / EPL `xa`) |
-| 9. Etiqueta de teste | 5. Etiqueta de teste |
+| 2. Fila **só da etiquetadora**: qualquer documento parado conta | 2. Conferindo tamanho (50,8 × 25,4 mm, retrato) |
+| 3–7. Se houver: cancelar, parar/iniciar spooler, cancelar restantes, conferir vazia | 3. Se fora do padrão: corrigir nas preferências do usuário |
+| 8–9. Se não: TSPrint aberto? | 4. Calibrar (ZPL `~JC` / EPL `xa`) |
+| 10. Etiqueta de teste | 5. Etiqueta de teste |
 
 A etiqueta de teste é enviada direto à impressora (RAW), porque a página de teste do Windows sai em branco
 no padrão WP. Se a etiqueta de teste sai e a do UniLab não, o problema está no TSPrint/UniLab.

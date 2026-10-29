@@ -24,8 +24,8 @@ internal sealed class UacElevatedStepRunner : IElevatedStepRunner
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
 
     public async Task<IReadOnlyList<ProcedureResult>> RunAsync(
-        MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IRunEventSink sink,
-        CancellationToken cancellationToken)
+        MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IReadOnlyDictionary<string, string> state,
+        IRunEventSink sink, CancellationToken cancellationToken)
     {
         // Resultados que o processo elevado já informou, para completar o restante em caso de falha.
         var reported = new Dictionary<int, ProcedureResult>();
@@ -36,7 +36,7 @@ internal sealed class UacElevatedStepRunner : IElevatedStepRunner
             sink.Publish(e);
         });
 
-        var (results, failure) = await RunWorkerAsync(sequence, stepIndices, forwarding, cancellationToken);
+        var (results, failure) = await RunWorkerAsync(sequence, stepIndices, state, forwarding, cancellationToken);
         if (results is not null && results.Count == stepIndices.Count)
             return results;
 
@@ -63,10 +63,10 @@ internal sealed class UacElevatedStepRunner : IElevatedStepRunner
     }
 
     private static async Task<(IReadOnlyList<ProcedureResult>? Results, ProcedureResult? Failure)> RunWorkerAsync(
-        MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IRunEventSink sink,
-        CancellationToken cancellationToken)
+        MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IReadOnlyDictionary<string, string> state,
+        IRunEventSink sink, CancellationToken cancellationToken)
     {
-        var args = new WorkerArguments(sequence.Id, stepIndices, WorkerArguments.NewPipeName(), Environment.ProcessId);
+        var args = new WorkerArguments(sequence.Id, stepIndices, WorkerArguments.NewPipeName(), Environment.ProcessId, state);
 
         await using var server = new NamedPipeServerStream(
             args.PipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);

@@ -42,7 +42,7 @@ internal static class ElevatedWorkerHost
 
         // Mesmo que a interface seja fechada no meio, o bloco vai até o fim:
         // interromper no meio poderia deixar o serviço de impressão parado.
-        var results = await new SequenceRunner().RunStepsAsync(sequence, parsed.StepIndices, sink);
+        var results = await new SequenceRunner().RunStepsAsync(sequence, parsed.StepIndices, sink, state: parsed.StateOrEmpty);
         sink.Publish(new StepsCompletedEvent(parsed.StepIndices, results));
         return 0;
     }
