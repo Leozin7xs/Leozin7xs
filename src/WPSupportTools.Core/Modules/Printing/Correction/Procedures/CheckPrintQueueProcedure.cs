@@ -40,7 +40,21 @@ public sealed class CheckPrintQueueProcedure(
                 "O serviço de impressão não está em execução. Ele será reiniciado."));
         }
 
-        var jobs = platform.PrintQueue.ReadJobs();
+        IReadOnlyList<PrintJobInfo> jobs;
+        try
+        {
+            jobs = platform.PrintQueue.ReadJobs();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
+        {
+            // Fila tão travada que nem dá para ler: segue pelo caminho de limpeza.
+            context.Log($"Não foi possível ler a fila ({ex.GetType().Name}: {ex.Message}). Tratada como travada.");
+            context.State.Set(PrintingState.QueueNeedsReset, true);
+            if (printer is not null)
+                PrintingState.SetTargets(context.State, [printer]);
+            return Task.FromResult(ProcedureResult.Ok("A fila de impressão está travada (não foi possível ler os documentos)."));
+        }
+
         if (printer is not null)
             jobs = jobs.Where(j => string.Equals(j.PrinterName, printer, StringComparison.OrdinalIgnoreCase)).ToList();
 

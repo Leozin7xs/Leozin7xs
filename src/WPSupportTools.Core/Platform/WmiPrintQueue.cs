@@ -7,9 +7,15 @@ internal sealed class WmiPrintQueue : IPrintQueue
 {
     private const uint ErrorAccessDenied = 5;
 
+    /// <summary>Com a fila travada, a consulta pode não responder; após este tempo ela é tratada como travada.</summary>
+    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(10);
+
     public IReadOnlyList<PrintJobInfo> ReadJobs()
     {
-        using var searcher = new ManagementObjectSearcher("SELECT Name, StatusMask, TimeSubmitted FROM Win32_PrintJob");
+        using var searcher = new ManagementObjectSearcher(
+            new ManagementScope(@"root\cimv2"),
+            new ObjectQuery("SELECT Name, StatusMask, TimeSubmitted FROM Win32_PrintJob"),
+            new System.Management.EnumerationOptions { Timeout = QueryTimeout, ReturnImmediately = true, Rewindable = false });
         using var collection = searcher.Get();
 
         var jobs = new List<PrintJobInfo>();

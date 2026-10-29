@@ -17,7 +17,17 @@ public sealed class RecheckPrintQueueProcedure(PlatformServices platform) : IPro
     {
         await Task.Delay(PrintingConstants.SpoolerSettleDelay, cancellationToken);
 
-        var jobs = platform.PrintQueue.ReadJobs();
+        IReadOnlyList<PrintJobInfo> jobs;
+        try
+        {
+            jobs = platform.PrintQueue.ReadJobs();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return ProcedureResult.Fail("A fila de impressão continua travada (não foi possível ler os documentos).",
+                $"{ex.GetType().Name}: {ex.Message}");
+        }
+
         var targets = PrintingState.GetTargets(context.State);
         context.Log($"Fila de impressão após reinício: {PrintQueueAnalyzer.Assess(jobs).Summary}");
 

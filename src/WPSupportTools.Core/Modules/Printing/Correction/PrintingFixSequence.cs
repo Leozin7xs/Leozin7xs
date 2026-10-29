@@ -8,8 +8,9 @@ namespace WPSupportTools.Core.Modules.Printing.Correction;
 /// Sequência "Corrigir problema de impressão", conforme o procedimento manual da WP:
 /// <code>
 /// 1. Ver se a fila de impressão está travada (documento com erro).
-///    Se SIM: cancelar os documentos da fila travada, parar e iniciar o spooler
-///            (net stop / net start spooler), cancelar o que voltar e conferir se a fila ficou vazia.
+///    Se SIM: cancelar os documentos da fila travada, parar o spooler (net stop spooler), apagar os
+///            arquivos da fila, iniciar o spooler (net start spooler), cancelar o que voltar e
+///            conferir se a fila ficou vazia.
 ///    Se NÃO: ver se o TSPrint está aberto; se não estiver, abrir.
 /// </code>
 /// Para mudar a ordem, adicionar ou remover etapas, altere apenas a lista abaixo.
@@ -26,9 +27,10 @@ public static class PrintingFixSequence
         [
             new CheckPrintQueueProcedure(platform),
 
-            // Fila travada (etapas 2 a 5: um único pedido de administrador)
+            // Fila travada (etapas 2 a 6: um único pedido de administrador)
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new StopPrintSpoolerProcedure(platform), OnlyIfQueueStuck),
+            new ConditionalProcedure(new ClearSpoolFilesProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), OnlyIfQueueStuck),
             new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), OnlyIfQueueStuck),

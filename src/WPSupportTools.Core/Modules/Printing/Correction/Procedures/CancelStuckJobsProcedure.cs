@@ -6,7 +6,9 @@ namespace WPSupportTools.Core.Modules.Printing.Correction.Procedures;
 /// <summary>
 /// Igual a abrir a fila e "Cancelar todos os documentos", somente nas impressoras definidas na
 /// verificação da fila (<see cref="PrintingState.TargetPrinters"/>). As outras filas não são tocadas.
-/// O cancelamento é feito pelo próprio serviço de impressão; nenhum arquivo é apagado à mão.
+/// O cancelamento é feito pelo próprio serviço de impressão.
+/// Se a fila estiver travada a ponto de não deixar cancelar, a etapa não interrompe o processo:
+/// como o técnico faz à mão, segue para parar o serviço e limpar os arquivos da fila.
 /// </summary>
 /// <param name="afterRestart">
 /// Segunda passagem, depois de religar o spooler: documentos que estavam "excluindo" podem voltar
@@ -31,6 +33,19 @@ public sealed class CancelStuckJobsProcedure(PlatformServices platform, bool aft
         if (afterRestart)
             await Task.Delay(PrintingConstants.SpoolerSettleDelay, cancellationToken);
 
+        try
+        {
+            return Cancel(context);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not UnauthorizedAccessException)
+        {
+            context.Log($"Não foi possível cancelar pela fila ({ex.GetType().Name}: {ex.Message}). Seguindo com a limpeza.");
+            return ProcedureResult.Ok("Não foi possível cancelar pela fila; a limpeza continua com o serviço parado.");
+        }
+    }
+
+    private ProcedureResult Cancel(ProcedureContext context)
+    {
         var jobs = platform.PrintQueue.ReadJobs();
         var targets = PrintingState.GetTargets(context.State);
         var printers = targets is null
@@ -50,8 +65,10 @@ public sealed class CancelStuckJobsProcedure(PlatformServices platform, bool aft
         }
 
         if (missing.Count > 0)
-            return ProcedureResult.Fail(
-                "Não foi possível encontrar a impressora para cancelar os documentos.", string.Join(", ", missing));
+        {
+            context.Log($"Impressora não encontrada para cancelar: {string.Join(", ", missing)}. Seguindo com a limpeza.");
+            return ProcedureResult.Ok("Alguns documentos não puderam ser cancelados pela fila; a limpeza continua.");
+        }
 
         return ProcedureResult.Ok($"Documentos cancelados em: {string.Join(", ", printers)}.");
     }

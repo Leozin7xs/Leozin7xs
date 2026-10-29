@@ -30,6 +30,7 @@ public static class LabelSequences
             new CheckPrintQueueProcedure(platform, LabelPrinter, anyPendingJobIsStuck: true),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new StopPrintSpoolerProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
+            new ConditionalProcedure(new ClearSpoolFilesProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),

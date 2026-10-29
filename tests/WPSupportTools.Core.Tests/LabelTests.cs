@@ -6,13 +6,15 @@ using WPSupportTools.Core.Procedures;
 
 namespace WPSupportTools.Core.Tests;
 
-public sealed class LabelTests
+public sealed class LabelTests : IDisposable
 {
     private const string Zd230 = "ZDesigner ZD230-203dpi ZPL";
     private const string Gc420 = "ZDesigner GC420t (EPL)";
 
     private readonly FakePlatform _fake = new();
     private readonly List<RunEvent> _events = [];
+
+    public void Dispose() => _fake.Dispose();
 
     private static InstalledPrinter Printer(string name, string driver, bool offline = false, bool isDefault = false) =>
         new(name, driver, "USB001", offline, isDefault);
@@ -177,7 +179,7 @@ public sealed class LabelTests
             .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
-        Assert.Equal([[2, 3, 4, 5]], elevated.Requests);
+        Assert.Equal([[2, 3, 4, 5, 6]], elevated.Requests);
         Assert.Equal([Zd230], _fake.Queue.Cancelled);
         Assert.Single(_fake.Raw.Sent);
     }
@@ -211,10 +213,29 @@ public sealed class LabelTests
             .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Equal(6, report.FailedStepIndex);
-        Assert.Contains("não foi limpa", report.Results[6].Message);
+        Assert.Equal(7, report.FailedStepIndex);
+        Assert.Contains("não foi limpa", report.Results[7].Message);
         Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
         Assert.Empty(_fake.Raw.Sent);   // não manda etiqueta de teste para fila travada
+    }
+
+    [Fact]
+    public async Task Not_printing_with_broken_queue_clears_only_the_label_printer_files()
+    {
+        _fake.Printers.Add(Printer(Zd230, Zd230));
+        _fake.Queue.Unreadable = true;
+        _fake.QueueFollowsSpoolFolder = true;
+        _fake.AddSpoolJob(Zd230, 3);
+        _fake.AddSpoolJob("Brother DCP-T820DW Printer", 4);
+        File.WriteAllText(_fake.SpoolPath("00005.SPL"), "resto sem .SHD");
+
+        var report = await new SequenceRunner(isElevated: false, new RecordingElevatedRunner())
+            .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);              // a fila da Zebra ficou vazia
+        Assert.Equal(["00004.SHD", "00004.SPL"], _fake.SpoolFiles());         // documento da Brother não foi tocado
+        Assert.Equal(ProcedureOutcome.Success, report.Results[4].Outcome);    // arquivos apagados
+        Assert.Single(_fake.Raw.Sent);                                        // etiqueta de teste
     }
 
     [Fact]
@@ -229,10 +250,10 @@ public sealed class LabelTests
     }
 
     [Theory]
-    [InlineData(new[] { 2, 3, 4, 5 }, true)]
+    [InlineData(new[] { 2, 3, 4, 5, 6 }, true)]
     [InlineData(new[] { 0 }, false)]
-    [InlineData(new[] { 6 }, false)]
-    [InlineData(new[] { 9 }, false)]
+    [InlineData(new[] { 7 }, false)]
+    [InlineData(new[] { 10 }, false)]
     public void Elevated_process_accepts_only_queue_steps_of_label_sequence(int[] steps, bool expected)
     {
         Assert.True(SequenceCatalog.TryCreate(LabelSequences.NotPrintingId, out var sequence));

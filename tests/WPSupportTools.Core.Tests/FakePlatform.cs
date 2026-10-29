@@ -3,7 +3,7 @@ using WPSupportTools.Core.Platform;
 namespace WPSupportTools.Core.Tests;
 
 /// <summary>Windows "de mentira" para testar as regras sem tocar no computador.</summary>
-internal sealed class FakePlatform
+internal sealed class FakePlatform : IDisposable
 {
     public FakeServices Services { get; } = new();
     public FakePrintQueue Queue { get; } = new();
@@ -13,15 +13,69 @@ internal sealed class FakePlatform
     public List<InstalledPrinter> Printers { get; } = [];
     public FakePreferences Preferences { get; } = new();
     public FakeRawPrinter Raw { get; } = new();
+    public string SpoolFolder { get; } = Path.Combine(Path.GetTempPath(), "wpst-spool-" + Guid.NewGuid().ToString("N"));
+    public string? ConfiguredSpoolFolder { get; set; }
+    public List<string> RegistryPrinters { get; } = [];
+
+    /// <summary>Simula o Windows: ao religar o spooler, a fila passa a refletir os arquivos que sobraram na pasta.</summary>
+    public bool QueueFollowsSpoolFolder { get; set; }
 
     public FakePlatform()
     {
+        Directory.CreateDirectory(SpoolFolder);
+        ConfiguredSpoolFolder = SpoolFolder;
         Modules.Printing.PrintingConstants.SpoolerSettleDelay = TimeSpan.Zero;
-        Services.OnStart = Queue.ReloadAfterRestart;
+        Modules.Printing.Correction.Procedures.ClearSpoolFilesProcedure.LockedFileGracePeriod = TimeSpan.Zero;
+        Services.OnStart = () =>
+        {
+            Queue.Unreadable = false;
+            Queue.ReloadAfterRestart();
+            if (QueueFollowsSpoolFolder)
+                RebuildQueueFromSpoolFolder();
+        };
     }
 
     public PlatformServices Build() =>
-        new(Services, Queue, Processes, () => Now, new FakeCatalog(Printers), Preferences, Raw);
+        new(Services, Queue, Processes, () => Now, new FakeCatalog(Printers), Preferences, Raw, new FakeSpool(this));
+
+    /// <summary>Cria um documento na pasta da fila (.SHD com o nome da impressora + .SPL).</summary>
+    public void AddSpoolJob(string printer, int number)
+    {
+        var shd = new List<byte>(new byte[] { 0x4B, 0x49, 0, 0, 0x10, 0, 0, 0 });
+        shd.AddRange(System.Text.Encoding.Unicode.GetBytes("usuario\0" + printer + "\0" + "documento.pdf\0"));
+        File.WriteAllBytes(SpoolPath($"{number:00000}.SHD"), [.. shd]);
+        File.WriteAllText(SpoolPath($"{number:00000}.SPL"), "conteudo");
+        if (!RegistryPrinters.Contains(printer))
+            RegistryPrinters.Add(printer);
+    }
+
+    public string SpoolPath(string name) => Path.Combine(SpoolFolder, name);
+
+    public string[] SpoolFiles() => Directory.GetFiles(SpoolFolder).Select(Path.GetFileName).Order().ToArray()!;
+
+    private void RebuildQueueFromSpoolFolder()
+    {
+        Jobs.Clear();
+        foreach (var shd in Directory.GetFiles(SpoolFolder, "*.SHD"))
+        {
+            var printer = Modules.Printing.Correction.SpoolFileAttribution.PrinterOf(File.ReadAllBytes(shd), RegistryPrinters);
+            if (printer is not null)
+                Jobs.Add(new PrintJobInfo(printer, PrintJobStatus.Error, Now));
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(SpoolFolder))
+            Directory.Delete(SpoolFolder, recursive: true);
+    }
+
+    private sealed class FakeSpool(FakePlatform owner) : ISpoolFolder
+    {
+        public string StandardPath => owner.SpoolFolder;
+        public string? ConfiguredPath() => owner.ConfiguredSpoolFolder;
+        public IReadOnlyList<string> InstalledPrinterNames() => owner.RegistryPrinters;
+    }
 
     private sealed class FakeCatalog(List<InstalledPrinter> printers) : IPrinterCatalog
     {
@@ -89,10 +143,16 @@ internal sealed class FakePrintQueue : IPrintQueue
         _pendingDeletion.Clear();
     }
 
-    public IReadOnlyList<PrintJobInfo> ReadJobs() => Jobs.ToList();
+    /// <summary>Simula a fila "bugada": nem dá para ler nem cancelar os documentos.</summary>
+    public bool Unreadable { get; set; }
+
+    public IReadOnlyList<PrintJobInfo> ReadJobs() =>
+        Unreadable ? throw new InvalidOperationException("Tempo esgotado ao consultar a fila.") : Jobs.ToList();
 
     public bool CancelAllJobs(string printerName)
     {
+        if (Unreadable)
+            throw new InvalidOperationException("Tempo esgotado ao consultar a fila.");
         if (!InstalledPrinters.Contains(printerName))
             return false;
 

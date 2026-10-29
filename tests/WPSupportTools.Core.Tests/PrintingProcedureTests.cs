@@ -98,13 +98,14 @@ public sealed class PrintingProcedureTests
     }
 
     [Fact]
-    public async Task Cancel_fails_when_printer_cannot_be_found()
+    public async Task Missing_printer_does_not_stop_the_cleanup()
     {
         _fake.Jobs.Add(new PrintJobInfo("Impressora removida", PrintJobStatus.Error, _fake.Now));
 
         var result = await new CancelStuckJobsProcedure(_fake.Build()).ExecuteAsync(_context, default);
 
-        Assert.Equal(ProcedureOutcome.Failure, result.Outcome);
+        Assert.Equal(ProcedureOutcome.Success, result.Outcome);
+        Assert.Contains("limpeza continua", result.Message);
     }
 
     [Fact]

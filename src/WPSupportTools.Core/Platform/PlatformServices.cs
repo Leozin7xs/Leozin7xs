@@ -8,9 +8,10 @@ public sealed record PlatformServices(
     Func<DateTime> Now,
     IPrinterCatalog Printers,
     IPrinterPreferences Preferences,
-    IRawPrinter Raw)
+    IRawPrinter Raw,
+    ISpoolFolder SpoolFolder)
 {
-    private static readonly WinSpool Spool = new();
+    private static readonly WinSpool WinSpoolApi = new();
 
     public static PlatformServices Windows { get; } = new(
         new WindowsServices(),
@@ -18,6 +19,7 @@ public sealed record PlatformServices(
         new WindowsProcessLauncher(),
         () => DateTime.Now,
         new WmiPrinterCatalog(),
-        Spool,
-        Spool);
+        WinSpoolApi,
+        WinSpoolApi,
+        new WindowsSpoolFolder());
 }
