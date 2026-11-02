@@ -285,8 +285,12 @@
             <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Abrir pasta de logs"
                         Command="{Binding OpenLogsCommand}" />
-                <TextBlock Text="{Binding VersionText}" FontSize="12" Foreground="{StaticResource SubtleTextBrush}"
-                           VerticalAlignment="Center" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Instalar neste computador"
+                        Command="{Binding InstallCommand}"
+                        Visibility="{Binding CanInstall, Converter={StaticResource BoolVisibility}}" />
+                <TextBlock FontSize="12" Foreground="{StaticResource SubtleTextBrush}" VerticalAlignment="Center">
+                    <Run Text="{Binding VersionText, Mode=OneWay}" /><Run Text="{Binding InstallStatus, Mode=OneWay}" />
+                </TextBlock>
             </DockPanel>
         </Border>
     </Grid>

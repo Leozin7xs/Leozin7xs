@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.4.2):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> **Status atual (v0.5.0):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
 > Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
 
 ---
@@ -125,7 +125,12 @@ no padrão WP. Se a etiqueta de teste sai e a do UniLab não, o problema está n
 **Ainda não feito:** conferir/corrigir escuridão, velocidade, modo, offsets e gráficos (depende da
 "configuração modelo" — ver docs). Comandos de calibração a validar com cada modelo.
 
-## Elevação de privilégios (UAC)
+## Elevação de privilégios (serviço ou UAC)
+
+Com o **serviço instalado**, a interface envia o pedido pelo canal local `WPSupportTools.Service` e o
+serviço (conta de sistema) executa — sem senha. O serviço só aceita etapas de administrador de sequências
+do catálogo, com as informações que a sequência permite (mesma validação descrita abaixo).
+Sem o serviço (ou se ele não responder), vale o fluxo pelo UAC:
 
 1. A interface abre **sem** privilégios de administrador (`asInvoker` em `app.manifest`).
 2. Ao chegar a etapas administrativas, o app inicia **o próprio executável**
@@ -163,18 +168,20 @@ Exemplo:
 
 ## Internet
 
-O aplicativo **não faz nenhuma conexão de rede**: sem telemetria, sem verificação de atualização,
-sem envio de logs. Tudo roda localmente.
+A interface **não faz nenhuma conexão de rede**. O **serviço** (só no PC instalado) consulta e baixa
+atualizações do GitHub (`latest.json` e o `.exe` do release "unidades") — autorizado pelo suporte.
+Nada é enviado: sem telemetria, sem envio de logs.
 
-## Como abrir (usuário / técnico)
+## Instalação nas unidades e atualização automática
 
-Baixe o `WPSupportTools.exe` e dê dois cliques. Não precisa instalar nada nem usar PowerShell.
+Guia completo: **[docs/instalacao-e-atualizacao.md](docs/instalacao-e-atualizacao.md)**.
 
-- Onde baixar: **https://github.com/Leozin7xs/Leozin7xs/releases/latest** (link direto do .exe). Alternativa: aba **Actions** → execução mais recente de "Gerar WPSupportTools.exe" →
-  **Artifacts** → `WPSupportTools` (vem em .zip). Versões marcadas (tag `v*`) aparecem em **Releases**.
-- Na primeira vez, o Windows pode mostrar "O Windows protegeu o computador" (o .exe ainda não é assinado):
-  clique em **Mais informações → Executar assim mesmo**.
-- Para as unidades: copiar para `C:\Program Files\WP Support Tools\` e criar um atalho na área de trabalho.
+- O técnico instala uma vez por PC ("Instalar neste computador", no rodapé): programa em Program Files,
+  atalho e o **serviço do Windows**, que faz as etapas de administrador **sem pedir senha**.
+- Versões de teste: https://github.com/Leozin7xs/Leozin7xs/releases/latest
+- As unidades só recebem o que for aprovado no botão **Actions → "Publicar para as unidades"**,
+  assinado com a chave da WP; o serviço confere a assinatura e se atualiza sozinho (a cada 6 h).
+- Sem o serviço instalado, o app continua funcionando e pede a permissão pelo UAC, como antes.
 
 ## Compilar, testar e gerar o .exe (desenvolvimento)
 

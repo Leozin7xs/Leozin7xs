@@ -78,22 +78,8 @@ public sealed partial record WorkerArguments(
     /// sem repetição, e que realmente exigem administrador; e só aceita informações que a
     /// sequência declara como permitidas.
     /// </summary>
-    public bool StepsAreValidFor(MaintenanceSequence sequence)
-    {
-        if (StepIndices.Count == 0)
-            return false;
-
-        for (var k = 0; k < StepIndices.Count; k++)
-        {
-            var index = StepIndices[k];
-            if (index < 0 || index >= sequence.Steps.Count || (k > 0 && index <= StepIndices[k - 1]))
-                return false;
-            if (!sequence.Steps[index].RequiresElevation)
-                return false;
-        }
-
-        return StateOrEmpty.Keys.All(sequence.TransferableStateKeys.Contains);
-    }
+    public bool StepsAreValidFor(MaintenanceSequence sequence) =>
+        ElevatedRequest.StepsAreValid(sequence, StepIndices, StateOrEmpty);
 
     public static string NewPipeName() => $"WPSupportTools-{Guid.NewGuid():N}";
 

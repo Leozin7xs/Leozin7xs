@@ -8,7 +8,14 @@
     <RootNamespace>WPSupportTools.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- Main próprio (Program.cs): o mesmo .exe roda como interface ou como serviço do Windows. -->
+    <StartupObject>WPSupportTools.App.Program</StartupObject>
   </PropertyGroup>
+
+  <!-- Chave pública de atualização, injetada pela compilação no GitHub (-p:UpdatePublicKey=...). -->
+  <ItemGroup Condition="'$(UpdatePublicKey)' != ''">
+    <AssemblyMetadata Include="UpdatePublicKey" Value="$(UpdatePublicKey)" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\WPSupportTools.Core\WPSupportTools.Core.csproj" />

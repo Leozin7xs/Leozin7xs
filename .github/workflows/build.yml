@@ -1,6 +1,7 @@
 # Gera o WPSupportTools.exe no Windows a cada envio e publica na página de versões (Releases),
-# com o número de versão de Directory.Build.props (ex.: v0.3.0). Enquanto a versão não muda,
-# cada envio substitui o .exe dessa mesma versão.
+# com o número de versão de Directory.Build.props (ex.: v0.5.0). Enquanto a versão não muda,
+# cada envio substitui o .exe dessa mesma versão. Estas versões são para TESTE: as unidades só
+# recebem o que for aprovado no workflow "Publicar para as unidades".
 name: Gerar WPSupportTools.exe
 
 on:
@@ -25,8 +26,34 @@ jobs:
       - name: Testes
         run: dotnet test WPSupportTools.sln -c Release
 
+      # A chave PRIVADA fica só no segredo do GitHub; aqui sai apenas a chave PÚBLICA, que vai
+      # dentro do .exe para ele conferir as atualizações. Nada secreto aparece no log.
+      - name: Chave de atualização
+        id: chave
+        shell: pwsh
+        env:
+          WPST_UPDATE_KEY: ${{ secrets.WPST_UPDATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WPST_UPDATE_KEY)) {
+            Write-Host "::warning::Segredo WPST_UPDATE_KEY não configurado: esta versão não terá atualização automática."
+            exit 0
+          }
+          $rsa = [System.Security.Cryptography.RSA]::Create()
+          $rsa.FromXmlString($env:WPST_UPDATE_KEY)
+          $publica = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($rsa.ToXmlString($false)))
+          "publica=$publica" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          New-Item -ItemType Directory -Force publish/win-x64 | Out-Null
+          Set-Content publish/win-x64/chave-publica.txt $publica -NoNewline
+
       - name: Gerar .exe
-        run: dotnet publish src/WPSupportTools.App -p:PublishProfile=win-x64 -p:DebugType=none
+        shell: pwsh
+        env:
+          CHAVE_PUBLICA: ${{ steps.chave.outputs.publica }}
+        run: |
+          $argumentos = @('publish', 'src/WPSupportTools.App', '-p:PublishProfile=win-x64', '-p:DebugType=none')
+          if ($env:CHAVE_PUBLICA) { $argumentos += "-p:UpdatePublicKey=$env:CHAVE_PUBLICA" }
+          dotnet @argumentos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - uses: actions/upload-artifact@v5
         with:
@@ -42,11 +69,12 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version
           $tag = "v$version"
-          $exe = "publish/win-x64/WPSupportTools.exe"
+          $arquivos = @("publish/win-x64/WPSupportTools.exe")
+          if (Test-Path publish/win-x64/chave-publica.txt) { $arquivos += "publish/win-x64/chave-publica.txt" }
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $exe --target $env:GITHUB_SHA --title "WP Support Tools $version" `
-              --notes "Baixe o WPSupportTools.exe abaixo e dê dois cliques. Não precisa instalar nada."
+            gh release create $tag @arquivos --target $env:GITHUB_SHA --title "WP Support Tools $version" `
+              --notes "Versão de TESTE. Baixe o WPSupportTools.exe abaixo e dê dois cliques. As unidades só recebem esta versão depois de aprovada em 'Publicar para as unidades'."
           } else {
-            gh release upload $tag $exe --clobber
+            gh release upload $tag @arquivos --clobber
           }

@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
-using System.Text;
 using WPSupportTools.Core.Execution;
 using WPSupportTools.Core.Procedures;
 
@@ -23,44 +22,11 @@ internal sealed class UacElevatedStepRunner : IElevatedStepRunner
 {
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(30);
 
-    public async Task<IReadOnlyList<ProcedureResult>> RunAsync(
+    public Task<IReadOnlyList<ProcedureResult>> RunAsync(
         MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IReadOnlyDictionary<string, string> state,
-        IRunEventSink sink, CancellationToken cancellationToken)
-    {
-        // Resultados que o processo elevado já informou, para completar o restante em caso de falha.
-        var reported = new Dictionary<int, ProcedureResult>();
-        var forwarding = new DelegateRunEventSink(e =>
-        {
-            if (e is StepFinishedEvent finished)
-                reported[finished.Index] = finished.Result;
-            sink.Publish(e);
-        });
-
-        var (results, failure) = await RunWorkerAsync(sequence, stepIndices, state, forwarding, cancellationToken);
-        if (results is not null && results.Count == stepIndices.Count)
-            return results;
-
-        failure ??= ProcedureResult.Fail("O processo de manutenção não informou o resultado.");
-        var completed = new List<ProcedureResult>(stepIndices.Count);
-        var failureUsed = false;
-        foreach (var index in stepIndices)
-        {
-            if (reported.TryGetValue(index, out var known))
-            {
-                completed.Add(known);
-                continue;
-            }
-
-            var result = failureUsed
-                ? ProcedureResult.Skipped("Não executado.")
-                : failure;
-            failureUsed = true;
-            completed.Add(result);
-            sink.Publish(new StepFinishedEvent(index, sequence.Steps[index].Id, result));
-        }
-
-        return completed;
-    }
+        IRunEventSink sink, CancellationToken cancellationToken) =>
+        ElevatedProtocol.RunAndCompleteAsync(sequence, stepIndices, sink,
+            forwarding => RunWorkerAsync(sequence, stepIndices, state, forwarding, cancellationToken));
 
     private static async Task<(IReadOnlyList<ProcedureResult>? Results, ProcedureResult? Failure)> RunWorkerAsync(
         MaintenanceSequence sequence, IReadOnlyList<int> stepIndices, IReadOnlyDictionary<string, string> state,
@@ -105,7 +71,7 @@ internal sealed class UacElevatedStepRunner : IElevatedStepRunner
                 clientPid != worker.Id)
                 return (null, ProcedureResult.Fail("Conexão recusada: o processo conectado não é o esperado."));
 
-            return await ReadEventsAsync(server, sequence, stepIndices, sink, cancellationToken);
+            return await ElevatedProtocol.ReadEventsAsync(server, sequence, stepIndices, sink, cancellationToken);
         }
     }
 
@@ -128,37 +94,5 @@ internal sealed class UacElevatedStepRunner : IElevatedStepRunner
         }
 
         return connect.IsCompletedSuccessfully;
-    }
-
-    private static async Task<(IReadOnlyList<ProcedureResult>? Results, ProcedureResult? Failure)> ReadEventsAsync(
-        NamedPipeServerStream server, MaintenanceSequence sequence, IReadOnlyList<int> stepIndices,
-        IRunEventSink sink, CancellationToken cancellationToken)
-    {
-        // Limite geral: soma dos limites de cada etapa do bloco + margem.
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(stepIndices.Aggregate(TimeSpan.FromMinutes(1), (total, i) => total + sequence.Steps[i].Timeout));
-
-        using var reader = new StreamReader(server, new UTF8Encoding(false));
-        try
-        {
-            while (await reader.ReadLineAsync(cts.Token) is { } line)
-            {
-                var runEvent = RunEventSerializer.TryDeserialize(line);
-                if (runEvent is StepsCompletedEvent done && done.Indices.SequenceEqual(stepIndices))
-                    return (done.Results, null);
-                if (runEvent is StepStartedEvent or StepFinishedEvent or LogEvent)
-                    sink.Publish(runEvent);
-            }
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return (null, ProcedureResult.Fail("O processo de manutenção excedeu o tempo limite."));
-        }
-        catch (IOException)
-        {
-            // Canal fechado inesperadamente; tratado abaixo.
-        }
-
-        return (null, ProcedureResult.Fail("O processo de manutenção foi encerrado antes de concluir."));
     }
 }

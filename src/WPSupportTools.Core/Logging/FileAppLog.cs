@@ -12,15 +12,22 @@ public sealed class FileAppLog : IAppLog
 {
     private readonly object _gate = new();
     private readonly Func<DateTime> _now;
+    private readonly string _filePrefix;
 
     public FileAppLog() : this(DefaultDirectory(), () => DateTime.Now)
     {
     }
 
-    internal FileAppLog(string directory, Func<DateTime> now)
+    /// <summary>Log em outra pasta, ex.: o do serviço em %ProgramData%.</summary>
+    public FileAppLog(string directory, string filePrefix) : this(directory, () => DateTime.Now, filePrefix)
+    {
+    }
+
+    internal FileAppLog(string directory, Func<DateTime> now, string filePrefix = "wpst")
     {
         LogDirectory = directory;
         _now = now;
+        _filePrefix = filePrefix;
     }
 
     public string LogDirectory { get; }
@@ -33,7 +40,7 @@ public sealed class FileAppLog : IAppLog
         var now = _now();
         var line = $"[{now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}] " +
                    $"[{LevelLabel(level)}] {message.ReplaceLineEndings(" ")}{Environment.NewLine}";
-        var path = Path.Combine(LogDirectory, $"wpst-{now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}.log");
+        var path = Path.Combine(LogDirectory, $"{_filePrefix}-{now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}.log");
 
         lock (_gate)
         {

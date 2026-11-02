@@ -1,0 +1,70 @@
+# Botão "Publicar para as unidades" (aba Actions → "Publicar para as unidades" → Run workflow).
+# Pega EXATAMENTE o .exe da versão testada (release vX.Y.Z), assina com a chave da WP e publica no
+# release "unidades". Os computadores com o serviço instalado se atualizam sozinhos em até 6 horas.
+name: Publicar para as unidades
+
+on:
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versão testada a publicar (ex.: 0.5.0). Em branco = versão atual do projeto."
+        required: false
+
+permissions:
+  contents: write
+
+concurrency: publicar-unidades
+
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Assinar e publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WPST_UPDATE_KEY: ${{ secrets.WPST_UPDATE_KEY }}
+          VERSAO: ${{ inputs.versao }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:WPST_UPDATE_KEY)) {
+            throw "Configure o segredo WPST_UPDATE_KEY (veja docs/instalacao-e-atualizacao.md)."
+          }
+
+          $versao = if ($env:VERSAO) { $env:VERSAO.Trim().TrimStart('v', 'V') } else { ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version }
+          New-Item -ItemType Directory saida | Out-Null
+          gh release download "v$versao" -p WPSupportTools.exe -p chave-publica.txt -D saida
+          if ($LASTEXITCODE -ne 0) { throw "Versão v$versao não encontrada (ou sem chave-publica.txt) na página de versões." }
+
+          $rsa = [System.Security.Cryptography.RSA]::Create()
+          $rsa.FromXmlString($env:WPST_UPDATE_KEY)
+          $publica = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($rsa.ToXmlString($false)))
+          if ((Get-Content saida/chave-publica.txt -Raw).Trim() -ne $publica) {
+            throw "A versão $versao foi gerada com outra chave (ou sem chave). Gere a versão de novo, teste e publique."
+          }
+
+          $exe = Get-Item saida/WPSupportTools.exe
+          $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $texto = [Text.Encoding]::UTF8.GetBytes("WPSupportTools|$versao|$sha")
+          $assinatura = [Convert]::ToBase64String($rsa.SignData($texto,
+            [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.RSASignaturePadding]::Pkcs1))
+          [ordered]@{ version = $versao; sha256 = $sha; size = $exe.Length; signature = $assinatura } |
+            ConvertTo-Json | Set-Content saida/latest.json -Encoding utf8NoBOM
+
+          gh release view unidades *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create unidades --latest=false --target $env:GITHUB_SHA --title "Versão das unidades" `
+              --notes "Versão aprovada para as unidades."
+            if ($LASTEXITCODE -ne 0) { throw "Não foi possível criar o release 'unidades'." }
+          }
+
+          # Primeiro o .exe, depois o latest.json: as unidades só enxergam a versão nova com o arquivo já no lugar.
+          gh release upload unidades saida/WPSupportTools.exe --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao enviar o .exe." }
+          gh release upload unidades saida/latest.json --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao enviar o latest.json." }
+          gh release edit unidades --notes "Versão aprovada para as unidades: **$versao** (publicada em $((Get-Date).ToUniversalTime().ToString('dd/MM/yyyy HH:mm')) UTC). Os computadores com o serviço instalado se atualizam sozinhos em até 6 horas."
+
+          "### Publicado para as unidades: versão $versao" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

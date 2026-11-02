@@ -31,6 +31,15 @@ public sealed class LoggingTests : IDisposable
     }
 
     [Fact]
+    public void Service_log_uses_its_own_file_name()
+    {
+        var log = new FileAppLog(_dir, () => Now, "servico");
+        log.Write(LogLevel.Info, "Serviço iniciado");
+
+        Assert.True(File.Exists(Path.Combine(_dir, "servico-20261005.log")));
+    }
+
+    [Fact]
     public void Run_log_contains_version_steps_results_and_errors()
     {
         var writer = new RunLogWriter(new FileAppLog(_dir, () => Now));

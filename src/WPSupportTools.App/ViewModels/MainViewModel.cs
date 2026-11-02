@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -8,6 +9,8 @@ using WPSupportTools.Core.Logging;
 using WPSupportTools.Core.Modules;
 using WPSupportTools.Core.Procedures;
 using WPSupportTools.Core;
+using WPSupportTools.App.Service;
+using WPSupportTools.App.Elevation;
 
 namespace WPSupportTools.App.ViewModels;
 
@@ -52,6 +55,84 @@ public sealed class MainViewModel : ObservableObject
         BackHomeCommand = new RelayCommand(() => CurrentScreen = Screen.Home, () => !IsBusy);
         OpenLogsCommand = new RelayCommand(OpenLogFolder);
         CloseCommand = new RelayCommand(() => RequestClose?.Invoke(this, EventArgs.Empty), () => !IsBusy);
+        InstallCommand = new RelayCommand(() => _ = InstallAsync(), () => !IsBusy);
+        RefreshInstallState();
+    }
+
+    private bool _canInstall;
+    private string _installStatus = "";
+
+    /// <summary>Mostra "Instalar neste computador" quando esta cópia não é a instalada com o serviço.</summary>
+    public bool CanInstall
+    {
+        get => _canInstall;
+        private set => SetProperty(ref _canInstall, value);
+    }
+
+    public string InstallStatus
+    {
+        get => _installStatus;
+        private set => SetProperty(ref _installStatus, value);
+    }
+
+    public ICommand InstallCommand { get; }
+
+    private void RefreshInstallState()
+    {
+        var installed = Installer.IsServiceInstalled();
+        var fromInstallDir = Installer.IsRunningFromInstallDirectory();
+        CanInstall = !(installed && fromInstallDir);
+        InstallStatus = installed && fromInstallDir
+            ? (Installer.IsServiceRunning() ? " · instalado, atualização automática" : " · instalado (serviço parado)")
+            : "";
+    }
+
+    private async Task InstallAsync()
+    {
+        var confirm = MessageBox.Show(
+            "Instalar o WP Support Tools neste computador?\n\n" +
+            "• Copia o programa para Arquivos de Programas e cria um atalho na área de trabalho.\n" +
+            "• Instala o serviço que corrige a impressão sem pedir senha e mantém o programa atualizado.\n\n" +
+            "O Windows vai pedir a senha de administrador uma única vez.",
+            AppInfo.Name, MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+
+        int exitCode;
+        try
+        {
+            exitCode = await Task.Run(() =>
+            {
+                using var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = Environment.ProcessPath!,
+                    Arguments = "--install",
+                    UseShellExecute = true,
+                    Verb = "runas",
+                });
+                if (process is null)
+                    return -1;
+                process.WaitForExit();
+                return process.ExitCode;
+            });
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == NativeMethods.ErrorCancelled)
+        {
+            _log.Write(LogLevel.Info, "Instalação cancelada: permissão de administrador não concedida.");
+            return;
+        }
+
+        RefreshInstallState();
+        if (exitCode != 0)
+            return;   // o instalador já mostrou o erro
+
+        _log.Write(LogLevel.Info, "WP Support Tools instalado neste computador.");
+        if (!Installer.IsRunningFromInstallDirectory() &&
+            MessageBox.Show("Instalado com sucesso. Um atalho foi criado na área de trabalho.\n\nAbrir agora a versão instalada?",
+                AppInfo.Name, MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+        {
+            ((App)Application.Current).OpenInstalledAndExit();
+        }
     }
 
     public event EventHandler? RequestClose;
