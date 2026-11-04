@@ -77,6 +77,83 @@ public sealed class LabelTests : IDisposable
     public void Several_online_zebras_without_default_are_not_guessed() =>
         Assert.Null(LabelPrinterSelector.Select([Printer("A", Zd230), Printer("B", Gc420)]).Printer);
 
+    [Fact]
+    public void Several_online_zebras_use_the_one_configured_in_tsprint_before_the_default()
+    {
+        var choice = LabelPrinterSelector.Select(
+            [Printer("Zebra TS&", Zd230, isDefault: true), Printer("ZDesigner GC420d (EPL)", Gc420)],
+            tsprintLabelPrinter: "zdesigner gc420d (epl)");
+
+        Assert.Equal("ZDesigner GC420d (EPL)", choice.Printer?.Name);
+        Assert.Equal(ZebraLanguage.Epl, choice.Language);
+        Assert.Contains("configurada no TSPrint", choice.Message);
+    }
+
+    [Fact]
+    public void Tsprint_printer_offline_falls_back_to_the_windows_default() =>
+        Assert.Equal("B", LabelPrinterSelector.Select(
+            [Printer("A", Zd230), Printer("B", Zd230, isDefault: true), Printer("C", Gc420, offline: true)],
+            tsprintLabelPrinter: "C").Printer?.Name);
+
+    [Fact]
+    public void Tsprint_printer_not_among_online_ones_is_reported()
+    {
+        var choice = LabelPrinterSelector.Select([Printer("A", Zd230), Printer("B", Gc420)], tsprintLabelPrinter: "Outra");
+
+        Assert.Null(choice.Printer);
+        Assert.Contains("\"Outra\"", choice.Message);
+    }
+
+    // ---------- Arquivo do TSPrint (print_doc_cnf.data) ----------
+
+    private const string TSPrintConfig =
+        "﻿[{\"ID\":1,\"FOLDER\":\"root\",\"PRINTERNAME\":\"SEC30CDA7FFC122\",\"DOWNLOAD\":\"Sim\",\"PRINT\":\"Sim\"}," +
+        "{\"ID\":2,\"FOLDER\":\"pdf\",\"PRINTERNAME\":\"Microsoft Print to PDF\",\"DOWNLOAD\":\"Sim\",\"PRINT\":\"N\\u00E3o\"}," +
+        "{\"ID\":3,\"FOLDER\":\"etiq\",\"PRINTERNAME\":\"ZDesigner TLP 2844 (Copiar 5)\",\"DOWNLOAD\":\"Sim\",\"PRINT\":\"Sim\"}]";
+
+    [Fact]
+    public void Reads_the_label_printer_from_tsprint_config() =>
+        Assert.Equal("ZDesigner TLP 2844 (Copiar 5)", TSPrintLabelPrinter.From(TSPrintConfig));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("lixo")]
+    [InlineData("{\"FOLDER\":\"etiq\",\"PRINTERNAME\":\"X\"}")]
+    [InlineData("[{\"ID\":1,\"FOLDER\":\"root\",\"PRINTERNAME\":\"X\"}]")]
+    [InlineData("[{\"ID\":3,\"FOLDER\":\"etiq\",\"PRINTERNAME\":\"\"}]")]
+    public void Unrecognized_tsprint_config_gives_no_printer(string? config) =>
+        Assert.Null(TSPrintLabelPrinter.From(config));
+
+    [Fact]
+    public async Task Two_online_zebras_are_resolved_by_the_tsprint_config()
+    {
+        // Caso real: "Zebra TS&" e "ZDesigner GC420d (EPL)" ligadas, nenhuma padrão do Windows.
+        const string gc420d = "ZDesigner GC420d (EPL)";
+        _fake.Printers.Add(Printer("Zebra TS&", Zd230));
+        _fake.Printers.Add(Printer(gc420d, gc420d));
+        _fake.Preferences.DevModes[gc420d] = FakePreferences.NewDevMode(gc420d, 508, 254);
+        _fake.TSPrintPrinterConfig = TSPrintConfig.Replace("ZDesigner TLP 2844 (Copiar 5)", gc420d);
+
+        var report = await RunAsync(LabelSequences.CreateMisconfigured(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.All(_fake.Raw.Sent, s => Assert.Equal(gc420d, s.Printer));
+    }
+
+    [Fact]
+    public async Task Two_online_zebras_without_tsprint_config_still_stop()
+    {
+        _fake.Printers.Add(Printer("A", Zd230));
+        _fake.Printers.Add(Printer("B", Gc420));
+
+        var report = await RunAsync(LabelSequences.CreateMisconfigured(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Equal(0, report.FailedStepIndex);
+        Assert.Empty(_fake.Raw.Sent);
+    }
+
     // ---------- DEVMODE ----------
 
     [Fact]

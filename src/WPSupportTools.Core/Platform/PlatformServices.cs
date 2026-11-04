@@ -9,7 +9,8 @@ public sealed record PlatformServices(
     IPrinterCatalog Printers,
     IPrinterPreferences Preferences,
     IRawPrinter Raw,
-    ISpoolFolder SpoolFolder)
+    ISpoolFolder SpoolFolder,
+    ITSPrintConfig TSPrintConfig)
 {
     private static readonly WinSpool WinSpoolApi = new();
 
@@ -21,5 +22,6 @@ public sealed record PlatformServices(
         new WmiPrinterCatalog(),
         WinSpoolApi,
         WinSpoolApi,
-        new WindowsSpoolFolder());
+        new WindowsSpoolFolder(),
+        new TSPrintConfigFile());
 }

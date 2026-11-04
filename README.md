@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.5.0):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> **Status atual (v0.5.1):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
 > Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
 
 ---
@@ -92,7 +92,9 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado ou 
 - **Conferir fila:** a fila das impressoras tratadas tem que ficar **vazia**; se sobrar qualquer documento,
   a correção falha e orienta chamar o técnico (spooler ligado).
 - **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo
-  configurado em `PrintingConstants.TSPrintExecutablePath`. Configurações do TSPrint (inclusive senha) não são lidas.
+  configurado em `PrintingConstants.TSPrintExecutablePath`. Da configuração do TSPrint, só é lido o arquivo de
+  impressoras `C:\Rede_Unilab\TSPrint\conf\print_doc_cnf.data` (para saber a etiquetadora); o arquivo geral, com
+  usuário e senha, nunca é lido. Nada do TSPrint é alterado.
 
 ### Regras de execução
 
@@ -108,7 +110,8 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado ou 
 A funcionária escolhe **"Não sai nada"** ou **"Sai desconfigurada"**. Padrão WP em `docs/padrao-etiquetadoras.md`.
 
 **Escolha da etiquetadora:** só drivers `ZDesigner`. Ignora cópias offline; se houver mais de uma ligada,
-usa a padrão do Windows; senão não adivinha e pede o técnico. Se todas estiverem offline, avisa
+usa a que o **TSPrint** tem configurada para etiquetas (pasta `etiq` em `print_doc_cnf.data`); se não der,
+a padrão do Windows; senão não adivinha e pede o técnico. Se todas estiverem offline, avisa
 "desligada ou desconectada" e não faz mais nada.
 
 | "Não sai nada" | "Sai desconfigurada" |

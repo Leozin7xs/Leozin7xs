@@ -35,8 +35,17 @@ internal sealed class FakePlatform : IDisposable
         };
     }
 
+    /// <summary>Conteúdo do print_doc_cnf.data do TSPrint (null = arquivo não existe).</summary>
+    public string? TSPrintPrinterConfig { get; set; }
+
     public PlatformServices Build() =>
-        new(Services, Queue, Processes, () => Now, new FakeCatalog(Printers), Preferences, Raw, new FakeSpool(this));
+        new(Services, Queue, Processes, () => Now, new FakeCatalog(Printers), Preferences, Raw, new FakeSpool(this),
+            new FakeTSPrintConfig(this));
+
+    private sealed class FakeTSPrintConfig(FakePlatform owner) : ITSPrintConfig
+    {
+        public string? ReadPrinterConfig() => owner.TSPrintPrinterConfig;
+    }
 
     /// <summary>Cria um documento na pasta da fila (.SHD com o nome da impressora + .SPL).</summary>
     public void AddSpoolJob(string printer, int number)

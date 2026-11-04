@@ -18,6 +18,15 @@ public static class PrintingConstants
     /// </summary>
     public static string? TSPrintExecutablePath => null;
 
+    /// <summary>
+    /// Arquivo de impressoras do TSPrint (UniLab). Usado só para saber qual é a etiquetadora quando há
+    /// mais de uma ligada. O arquivo geral (geral_cnf.data, com usuário e senha) nunca é lido.
+    /// </summary>
+    public const string TSPrintPrinterConfigPath = @"C:\Rede_Unilab\TSPrint\conf\print_doc_cnf.data";
+
+    /// <summary>Pasta do TSPrint cujas impressões são etiquetas ("FOLDER" em print_doc_cnf.data).</summary>
+    public const string TSPrintLabelFolder = "etiq";
+
     /// <summary>Tempo máximo esperando o TSPrint aparecer depois de aberto.</summary>
     public static readonly TimeSpan TSPrintStartTimeout = TimeSpan.FromSeconds(15);
 
