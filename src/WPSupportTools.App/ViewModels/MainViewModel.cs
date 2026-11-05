@@ -9,6 +9,7 @@ using WPSupportTools.Core.Logging;
 using WPSupportTools.Core.Modules;
 using WPSupportTools.Core.Procedures;
 using WPSupportTools.Core;
+using WPSupportTools.Core.Telemetry;
 using WPSupportTools.App.Service;
 using WPSupportTools.App.Elevation;
 
@@ -16,6 +17,7 @@ namespace WPSupportTools.App.ViewModels;
 
 public enum Screen
 {
+    Setup,
     Home,
     Choose,
     Running,
@@ -30,6 +32,9 @@ public sealed class MainViewModel : ObservableObject
     private readonly IAppLog _log;
     private readonly RunLogWriter _runLog;
     private readonly ISequenceExecutor _executor;
+    private readonly UsageReporter _usage;
+    private readonly UnitStore _unitStore;
+    private Guid _runId;
 
     private MaintenanceSequence? _sequence;
     private Screen _screen = Screen.Home;
@@ -41,11 +46,13 @@ public sealed class MainViewModel : ObservableObject
     private SupportAction? _choiceAction;
     private string _completionHint = "";
 
-    public MainViewModel(IAppLog log, ISequenceExecutor executor)
+    public MainViewModel(IAppLog log, ISequenceExecutor executor, UsageReporter usage, UnitStore unitStore)
     {
         _log = log;
         _runLog = new RunLogWriter(log);
         _executor = executor;
+        _usage = usage;
+        _unitStore = unitStore;
 
         Actions = ModuleCatalog.All.SelectMany(m => m.Actions).ToList();
 
@@ -56,7 +63,95 @@ public sealed class MainViewModel : ObservableObject
         OpenLogsCommand = new RelayCommand(OpenLogFolder);
         CloseCommand = new RelayCommand(() => RequestClose?.Invoke(this, EventArgs.Empty), () => !IsBusy);
         InstallCommand = new RelayCommand(() => _ = InstallAsync(), () => !IsBusy);
+        SaveUnitCommand = new RelayCommand(SaveUnit);
+        ChangeUnitCommand = new RelayCommand(StartChangingUnit, () => !IsBusy);
+        CancelUnitCommand = new RelayCommand(() => CurrentScreen = Screen.Home, () => Unit is not null);
         RefreshInstallState();
+
+        Unit = _unitStore.Load();
+        _usage.Unit = Unit;
+        if (Unit is null)
+            StartChangingUnit();
+        _ = _usage.FlushAsync();   // envia o que tiver ficado guardado de usos anteriores
+    }
+
+    // ---------------- Unidade (primeiro acesso) ----------------
+
+    private UnitInfo? _unit;
+    private string? _selectedLaboratory;
+    private string _unitName = "";
+    private string _unitError = "";
+
+    public IReadOnlyList<string> Laboratories => UnitInfo.Laboratories;
+
+    /// <summary>Unidade deste computador (null até ser preenchida).</summary>
+    public UnitInfo? Unit
+    {
+        get => _unit;
+        private set
+        {
+            if (SetProperty(ref _unit, value))
+            {
+                OnPropertyChanged(nameof(HasUnit));
+            }
+        }
+    }
+
+    public bool HasUnit => Unit is not null;
+
+    public string? SelectedLaboratory
+    {
+        get => _selectedLaboratory;
+        set => SetProperty(ref _selectedLaboratory, value);
+    }
+
+    public string UnitName
+    {
+        get => _unitName;
+        set => SetProperty(ref _unitName, value);
+    }
+
+    public string UnitError
+    {
+        get => _unitError;
+        private set => SetProperty(ref _unitError, value);
+    }
+
+    public ICommand SaveUnitCommand { get; }
+    public ICommand ChangeUnitCommand { get; }
+    public ICommand CancelUnitCommand { get; }
+
+    private void StartChangingUnit()
+    {
+        SelectedLaboratory = Unit?.Laboratory;
+        UnitName = Unit?.Unit ?? "";
+        UnitError = "";
+        CurrentScreen = Screen.Setup;
+    }
+
+    private void SaveUnit()
+    {
+        var error = UnitInfo.TryCreate(SelectedLaboratory, UnitName, out var info);
+        if (error is not null || info is null)
+        {
+            UnitError = error ?? "Confira os dados.";
+            return;
+        }
+
+        try
+        {
+            var path = _unitStore.Save(info);
+            _log.Write(LogLevel.Info, $"Unidade definida: {info.DisplayName} (em {path}).");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            UnitError = $"Não foi possível salvar: {ex.Message}";
+            return;
+        }
+
+        Unit = info;
+        _usage.Unit = info;
+        CurrentScreen = Screen.Home;
     }
 
     private bool _canInstall;
@@ -224,6 +319,7 @@ public sealed class MainViewModel : ObservableObject
 
         CompletionHint = action.CompletionHint;
         _sequence = sequence;
+        _runId = Guid.NewGuid();
         IsBusy = true;
         IsSimulation = false;
         RunTitle = sequence.Title;
@@ -248,6 +344,9 @@ public sealed class MainViewModel : ObservableObject
         }
 
         _runLog.RunFinished(sequence, report);
+        _usage.RunFinished(_runId, report, report.FailedStepIndex is { } failed && failed < sequence.Steps.Count
+            ? sequence.Steps[failed].Id
+            : null);
         ShowResult(sequence, report);
         IsBusy = false;
     }
@@ -313,7 +412,10 @@ public sealed class MainViewModel : ObservableObject
     private void GiveFeedback(bool resolved)
     {
         if (_sequence is not null)
+        {
             _runLog.UserFeedback(_sequence.Id, resolved);
+            _usage.Feedback(_runId, _sequence.Id, resolved);
+        }
 
         CurrentScreen = resolved ? Screen.Resolved : Screen.Escalated;
     }

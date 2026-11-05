@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.5.1):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> **Status atual (v0.6.1):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
 > Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
 
 ---
@@ -169,11 +169,41 @@ Exemplo:
 [2026-10-20 10:41:11] [INFO ] Etapa 5/7 [printing.recheck-queue] Conferindo se a fila destravou: OK — Fila destravada.
 ```
 
+## Unidade e painel de resultados
+
+**Primeiro acesso:** o app pergunta o **laboratório** (Santa Helena, Widal ou Endocrimeta — lista fixa em
+`UnitInfo.Laboratories`) e o **nome da unidade** (digitado). O nome é padronizado ("menino   DEUS" → "Menino Deus")
+e guardado em `%ProgramData%\WPSupportTools\unidade.json` (vale para todos os usuários do PC; se não der para
+gravar lá, fica em `%LOCALAPPDATA%`). Aparece no cabeçalho; "Alterar unidade" no rodapé.
+
+**Registros de uso** (para o painel): a cada atendimento o app guarda até dois registros, com o mesmo `atendimento_id`:
+
+| Campo | Exemplo | Observação |
+|---|---|---|
+| `tipo` | `execucao` / `retorno` | execução terminou / funcionária respondeu |
+| `resultado` | `concluido`, `falhou`, `sem_permissao`, `simulado` | só em `execucao` |
+| `etapa_com_falha` | `labels.locate` | só quando falhou |
+| `resolvido` | `true` / `false` | só em `retorno` ("Funcionou" / "Não funcionou") |
+| `laboratorio`, `unidade` | `Widal`, `Menino Deus` | preenchidos no primeiro acesso |
+| `pc_id` | `3f2a…` (16 caracteres) | resumo do MachineGuid — conta PCs, não identifica o nome do PC |
+| `sequencia`, `versao`, `ocorrido_em`, `id` | | |
+
+**Não vai:** nome de usuário, nome do computador, nomes de documentos, mensagens de erro.
+
+Os registros ficam em `%LOCALAPPDATA%\WPSupportTools\Uso\Pendentes\` e são enviados quando o painel estiver
+configurado (`TelemetryConstants.Endpoint`/`PublicKey`). **Desde a v0.6.1 vão para o Supabase** (projeto `wp-support-tools`; painel em https://wp-support-tools-painel.vercel.app); os
+guardados nos últimos 90 dias também são enviados. Sem internet, tentam de novo na próxima abertura.
+
+**Como o painel conta:** atendimento com `resultado = falhou` → foi para o suporte; `concluido` + retorno
+`resolvido = true` → resolvido pelo app; `concluido` + `resolvido = false` → foi para o suporte;
+`concluido` sem retorno → sem resposta.
+
 ## Internet
 
-A interface **não faz nenhuma conexão de rede**. O **serviço** (só no PC instalado) consulta e baixa
-atualizações do GitHub (`latest.json` e o `.exe` do release "unidades") — autorizado pelo suporte.
-Nada é enviado: sem telemetria, sem envio de logs.
+- **Interface:** envia os registros de uso acima para o painel (quando configurado). Nada mais.
+- **Serviço** (só no PC instalado): consulta e baixa atualizações do GitHub (`latest.json` e o `.exe` do release
+  "unidades") — autorizado pelo suporte.
+- Logs nunca são enviados.
 
 ## Instalação nas unidades e atualização automática
 

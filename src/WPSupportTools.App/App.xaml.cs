@@ -8,6 +8,7 @@ using WPSupportTools.Core;
 using WPSupportTools.Core.Execution;
 using WPSupportTools.Core.Logging;
 using WPSupportTools.Core.Service;
+using WPSupportTools.Core.Telemetry;
 
 namespace WPSupportTools.App;
 
@@ -49,7 +50,8 @@ public partial class App : Application
         new RunLogWriter(_log).ApplicationStarted();
 
         // Com o serviço instalado, as etapas de administrador não pedem senha; sem ele, usa o UAC.
-        var viewModel = new MainViewModel(_log, new LocalSequenceExecutor(new ElevatedRunnerSelector(_log)));
+        var viewModel = new MainViewModel(_log, new LocalSequenceExecutor(new ElevatedRunnerSelector(_log)),
+            UsageReporter.CreateDefault(_log), UnitStore.Default);
         var window = new MainWindow(viewModel);
         window.Closed += (_, _) => Shutdown();
         window.Show();

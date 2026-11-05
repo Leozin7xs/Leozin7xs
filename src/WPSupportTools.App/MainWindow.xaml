@@ -94,13 +94,85 @@
 
         <!-- Cabeçalho -->
         <Border Background="{StaticResource AccentBrush}" Padding="32,26">
-            <StackPanel>
-                <TextBlock Text="WP Support Tools" FontSize="26" FontWeight="SemiBold" Foreground="White" />
-                <TextBlock Text="Ferramentas de suporte técnico" FontSize="14" Foreground="#D6E4F3" Margin="0,4,0,0" />
-            </StackPanel>
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" VerticalAlignment="Bottom" Margin="16,0,0,2"
+                            Visibility="{Binding HasUnit, Converter={StaticResource BoolVisibility}}">
+                    <TextBlock Text="{Binding Unit.Unit}" FontSize="15" FontWeight="SemiBold" Foreground="White"
+                               HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="220" />
+                    <TextBlock Text="{Binding Unit.Laboratory}" FontSize="12" Foreground="#D6E4F3" HorizontalAlignment="Right" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="WP Support Tools" FontSize="26" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Ferramentas de suporte técnico" FontSize="14" Foreground="#D6E4F3" Margin="0,4,0,0" />
+                </StackPanel>
+            </DockPanel>
         </Border>
 
         <Grid Grid.Row="1" Margin="32,28">
+
+            <!-- ======================= Primeiro acesso: unidade ======================= -->
+            <StackPanel VerticalAlignment="Center"
+                        Visibility="{Binding CurrentScreen, Converter={StaticResource ScreenVisibility}, ConverterParameter=Setup}">
+                <TextBlock Style="{StaticResource Heading}" Text="Qual é a sua unidade?" />
+                <TextBlock Style="{StaticResource Body}" Margin="0,6,0,22"
+                           Text="Preencha uma vez só. Assim o suporte sabe de qual unidade vêm os atendimentos." />
+
+                <TextBlock Text="Laboratório" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8" />
+                <ListBox ItemsSource="{Binding Laboratories}" SelectedItem="{Binding SelectedLaboratory}"
+                         BorderThickness="0" Background="Transparent" Margin="0,0,0,20"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Margin" Value="0,0,8,0" />
+                            <Setter Property="Cursor" Value="Hand" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Box" CornerRadius="8" BorderThickness="2" Padding="10,14"
+                                                Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}">
+                                            <TextBlock x:Name="Label" Text="{Binding}" FontSize="15" TextAlignment="Center"
+                                                       TextWrapping="Wrap" Foreground="{StaticResource TextBrush}" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Box" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                <Setter TargetName="Label" Property="FontWeight" Value="SemiBold" />
+                                                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+
+                <TextBlock Text="Nome da unidade" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8" />
+                <Border CornerRadius="8" BorderThickness="2" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceBrush}">
+                    <TextBox x:Name="UnitNameBox" Text="{Binding UnitName, UpdateSourceTrigger=PropertyChanged}" FontSize="16"
+                             Padding="10,10" BorderThickness="0" Background="Transparent" MaxLength="60" />
+                </Border>
+                <TextBlock Style="{StaticResource Body}" FontSize="12" Margin="2,6,0,0"
+                           Text="Ex.: Medplex, Menino Deus, Santa Mônica, Matriz" />
+
+                <TextBlock Text="{Binding UnitError}" Foreground="{StaticResource DangerBrush}" FontSize="13" FontWeight="SemiBold"
+                           TextWrapping="Wrap" Margin="0,14,0,0" />
+
+                <Button Style="{StaticResource PrimaryButton}" Content="Salvar" Command="{Binding SaveUnitCommand}"
+                        IsDefault="True" Margin="0,16,0,0" />
+                <Button Style="{StaticResource LinkButton}" Content="Cancelar" Command="{Binding CancelUnitCommand}"
+                        HorizontalAlignment="Center" Margin="0,8,0,0"
+                        Visibility="{Binding HasUnit, Converter={StaticResource BoolVisibility}}" />
+            </StackPanel>
 
             <!-- ======================= Tela inicial ======================= -->
             <StackPanel VerticalAlignment="Center"
@@ -285,10 +357,13 @@
             <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Abrir pasta de logs"
                         Command="{Binding OpenLogsCommand}" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Alterar unidade"
+                        Command="{Binding ChangeUnitCommand}"
+                        Visibility="{Binding HasUnit, Converter={StaticResource BoolVisibility}}" />
                 <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Instalar neste computador"
                         Command="{Binding InstallCommand}"
                         Visibility="{Binding CanInstall, Converter={StaticResource BoolVisibility}}" />
-                <TextBlock FontSize="12" Foreground="{StaticResource SubtleTextBrush}" VerticalAlignment="Center">
+                <TextBlock FontSize="12" Foreground="{StaticResource SubtleTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
                     <Run Text="{Binding VersionText, Mode=OneWay}" /><Run Text="{Binding InstallStatus, Mode=OneWay}" />
                 </TextBlock>
             </DockPanel>
