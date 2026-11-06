@@ -42,9 +42,26 @@ internal sealed class FakePlatform : IDisposable
         new(Services, Queue, Processes, () => Now, new FakeCatalog(this), Preferences, Raw, new FakeSpool(this),
             new FakeTSPrintConfig(this));
 
+    /// <summary>Quantas vezes o arquivo de impressoras do TSPrint foi gravado.</summary>
+    public int TSPrintConfigWrites { get; private set; }
+
+    /// <summary>Simula o arquivo do TSPrint sem permissão de gravação.</summary>
+    public bool TSPrintConfigReadOnly { get; set; }
+
     private sealed class FakeTSPrintConfig(FakePlatform owner) : ITSPrintConfig
     {
         public string? ReadPrinterConfig() => owner.TSPrintPrinterConfig;
+
+        public void WritePrinterConfig(string content)
+        {
+            if (owner.TSPrintConfigReadOnly)
+                throw new UnauthorizedAccessException("Acesso negado.");
+            // O TSPrint aberto regravaria o arquivo antigo: o app precisa fechá-lo antes.
+            if (owner.Processes.TSPrintRunning)
+                throw new InvalidOperationException("Gravou com o TSPrint aberto.");
+            owner.TSPrintConfigWrites++;
+            owner.TSPrintPrinterConfig = content;
+        }
     }
 
     /// <summary>Cria um documento na pasta da fila (.SHD com o nome da impressora + .SPL).</summary>
@@ -230,5 +247,16 @@ internal sealed class FakeProcesses : IProcessLauncher
     {
         Started.Add(executablePath);
         TSPrintRunning = OpensSuccessfully;
+    }
+
+    public bool ClosesSuccessfully { get; set; } = true;
+    public List<int> Closed { get; } = [];
+
+    public bool Close(int processId, TimeSpan timeout)
+    {
+        Closed.Add(processId);
+        if (ClosesSuccessfully)
+            TSPrintRunning = false;
+        return ClosesSuccessfully;
     }
 }

@@ -131,3 +131,17 @@ Relatório de 26/10, PC com **ZDesigner ZD230-203dpi ZPL**, driver **8.6.4.23827
 Abordagem proposta ("configuração modelo"): um técnico deixa uma impressora de cada modelo exatamente no
 padrão; o app guarda essa configuração completa e, nas unidades, compara e reaplica pelo próprio Windows,
 somente quando o modelo **e a versão do driver** forem iguais aos do modelo guardado.
+
+## Capturar a configuração modelo (técnico, uma vez por modelo e versão de driver)
+
+1. Num PC com a Zebra instalada (ZD230/ZD220 ou GC420t/TLP2844), abra **Preferências de impressão**
+   e deixe **todas** as abas exatamente como nas tabelas acima. Clique em **OK**.
+2. Imprima pela própria tela do driver (**Página de teste**) e confira se a etiqueta sai certa.
+3. Feche o WP Support Tools, se estiver aberto. No PowerShell, rode o exe com `--capturar-modelo`, por exemplo:
+   `& "$env:USERPROFILE\Downloads\WPSupportTools.exe" --capturar-modelo`
+4. Aparece um resumo e abre a pasta `Área de Trabalho\WPST-configuracao-modelo`. Envie os arquivos
+   dessa pasta para o desenvolvimento. Eles não têm senha nem dado pessoal.
+
+Com os arquivos, o app passa a comparar e reaplicar essa configuração nas unidades, só quando o driver
+e a versão forem iguais aos do modelo.
+

@@ -18,7 +18,8 @@ public static class LabelSequences
 
     /// <summary>
     /// "Não sai nada": localizar a Zebra (avisa se estiver desligada), ver a fila dela;
-    /// se travada → cancelar, reiniciar spooler, conferir; se normal → TSPrint.
+    /// se travada → cancelar, reiniciar spooler, conferir; garantir que o TSPrint imprime etiquetas nessa Zebra;
+    /// se a fila estava normal → TSPrint aberto.
     /// No fim, etiqueta de teste: se ela sai mas a do UniLab não, o problema está no TSPrint/UniLab.
     /// </summary>
     internal static MaintenanceSequence CreateNotPrinting(PlatformServices platform) => new(
@@ -34,6 +35,7 @@ public static class LabelSequences
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
+            new SelectTSPrintLabelPrinterProcedure(platform),
             new ConditionalProcedure(new CheckTSPrintProcedure(platform), PrintingFixSequence.OnlyIfQueueNormal),
             new ConditionalProcedure(new StartTSPrintProcedure(platform),
                 s => PrintingFixSequence.OnlyIfQueueNormal(s) ?? (s.IsSet(PrintingState.TSPrintRunning)
@@ -45,7 +47,7 @@ public static class LabelSequences
 
     /// <summary>
     /// "Sai desconfigurada": localizar a Zebra, conferir/corrigir tamanho e orientação,
-    /// calibrar e imprimir etiqueta de teste.
+    /// calibrar, garantir que o TSPrint imprime etiquetas nessa Zebra e imprimir etiqueta de teste.
     /// </summary>
     internal static MaintenanceSequence CreateMisconfigured(PlatformServices platform) => new(
         MisconfiguredId,
@@ -56,6 +58,7 @@ public static class LabelSequences
             new ConditionalProcedure(new FixLabelSizeProcedure(platform),
                 s => s.IsSet(LabelState.SizeNeedsFix) ? null : "Não necessário: o tamanho já está no padrão."),
             new CalibrateLabelPrinterProcedure(platform),
+            new SelectTSPrintLabelPrinterProcedure(platform),
             new PrintTestLabelProcedure(platform),
         ]);
 

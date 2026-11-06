@@ -35,6 +35,13 @@ public partial class App : Application
             return;
         }
 
+        // Técnico: salva a "configuração modelo" das Zebras deste computador (não altera nada).
+        if (e.Args is ["--capturar-modelo"])
+        {
+            Shutdown(LabelModelCaptureCommand.Run());
+            return;
+        }
+
         // Evita duas manutenções simultâneas no mesmo computador.
         _singleInstance = new Mutex(true, @"Local\WPSupportTools.UI", out var isFirstInstance);
         if (!isFirstInstance)

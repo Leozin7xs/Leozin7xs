@@ -12,4 +12,7 @@ public interface IProcessLauncher
 
     /// <summary>Abre o programa como o usuário atual (sem elevação).</summary>
     void Start(string executablePath);
+
+    /// <summary>Encerra o processo e espera ele sair. False se não conseguiu.</summary>
+    bool Close(int processId, TimeSpan timeout);
 }

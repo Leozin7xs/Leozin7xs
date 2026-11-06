@@ -66,6 +66,68 @@ internal sealed class WinSpool : IPrinterPreferences, IRawPrinter
         }
     }
 
+    /// <summary>Configuração padrão da impressora (PRINTER_INFO_2.pDevMode), ou null se não houver.</summary>
+    public byte[]? ReadPrinterDefault(string printerName)
+    {
+        using var printer = PrinterHandle.Open(printerName);
+        var buffer = GetInfo(printer.Handle, 2, GetPrinter);
+        if (buffer == IntPtr.Zero)
+            return null;
+        try
+        {
+            var devMode = Marshal.ReadIntPtr(buffer, 7 * IntPtr.Size);   // 8º campo: pDevMode
+            if (devMode == IntPtr.Zero)
+                return null;
+            var size = (ushort)Marshal.ReadInt16(devMode, 68) + (ushort)Marshal.ReadInt16(devMode, 70);
+            var bytes = new byte[size];
+            Marshal.Copy(devMode, bytes, 0, size);
+            return bytes;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    /// <summary>Versão do arquivo do driver da impressora (ex.: 8.6.4.23827), ou null se não der para ler.</summary>
+    public string? DriverVersion(string printerName)
+    {
+        using var printer = PrinterHandle.Open(printerName);
+        var buffer = GetInfo(printer.Handle, 2, (h, level, b, size, out needed) => GetPrinterDriver(h, null, level, b, size, out needed));
+        if (buffer == IntPtr.Zero)
+            return null;
+        try
+        {
+            var info = Marshal.PtrToStructure<DriverInfo2>(buffer);
+            if (string.IsNullOrEmpty(info.DriverPath) || !File.Exists(info.DriverPath))
+                return null;
+            var version = System.Diagnostics.FileVersionInfo.GetVersionInfo(info.DriverPath);
+            return version.FileMajorPart + version.FileMinorPart + version.FileBuildPart + version.FilePrivatePart == 0
+                ? null
+                : $"{version.FileMajorPart}.{version.FileMinorPart}.{version.FileBuildPart}.{version.FilePrivatePart}";
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    private delegate bool InfoGetter(IntPtr printer, int level, IntPtr buffer, int size, out int needed);
+
+    private static IntPtr GetInfo(IntPtr printer, int level, InfoGetter get)
+    {
+        get(printer, level, IntPtr.Zero, 0, out var needed);
+        if (needed <= 0)
+            return IntPtr.Zero;
+
+        var buffer = Marshal.AllocHGlobal(needed);
+        if (get(printer, level, buffer, needed, out _))
+            return buffer;
+
+        Marshal.FreeHGlobal(buffer);
+        return IntPtr.Zero;
+    }
+
     public void Send(string printerName, string documentName, byte[] data)
     {
         using var printer = PrinterHandle.Open(printerName);
@@ -120,6 +182,24 @@ internal sealed class WinSpool : IPrinterPreferences, IRawPrinter
         public string? OutputFile;
         public string DataType;
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct DriverInfo2
+    {
+        public int Version;
+        public string? Name;
+        public string? Environment;
+        public string? DriverPath;
+        public string? DataFile;
+        public string? ConfigFile;
+    }
+
+    [DllImport("winspool.drv", EntryPoint = "GetPrinterW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetPrinter(IntPtr printer, int level, IntPtr buffer, int size, out int needed);
+
+    [DllImport("winspool.drv", EntryPoint = "GetPrinterDriverW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetPrinterDriver(
+        IntPtr printer, string? environment, int level, IntPtr buffer, int size, out int needed);
 
     [DllImport("winspool.drv", EntryPoint = "OpenPrinterW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool OpenPrinter(string printerName, out IntPtr printer, IntPtr defaults);

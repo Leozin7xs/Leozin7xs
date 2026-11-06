@@ -4,8 +4,8 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.2):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
-> Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
+> **Status atual (v0.6.3):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> A etiquetadora passa a ser selecionada no TSPrint automaticamente (pasta `etiq`).
 
 ---
 
@@ -92,9 +92,12 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado ou 
 - **Conferir fila:** a fila das impressoras tratadas tem que ficar **vazia**; se sobrar qualquer documento,
   a correção falha e orienta chamar o técnico (spooler ligado).
 - **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo
-  configurado em `PrintingConstants.TSPrintExecutablePath`. Da configuração do TSPrint, só é lido o arquivo de
-  impressoras `C:\Rede_Unilab\TSPrint\conf\print_doc_cnf.data` (para saber a etiquetadora); o arquivo geral, com
-  usuário e senha, nunca é lido. Nada do TSPrint é alterado.
+  `C:\Rede_Unilab\TSPrint\TSPrint.exe` (`PrintingConstants.TSPrintExecutablePath`). Da configuração do TSPrint,
+  só é usado o arquivo de impressoras `C:\Rede_Unilab\TSPrint\conf\print_doc_cnf.data`; o arquivo geral, com
+  usuário e senha, nunca é lido. A única alteração possível é o nome da impressora da pasta de etiquetas
+  (`etiq`/`etiqueta`), e só quando ela não aponta para a Zebra localizada: o TSPrint é fechado, o nome é trocado
+  (o resto do arquivo fica idêntico; cópia do anterior em `%LOCALAPPDATA%\WPSupportTools\Backups`) e o TSPrint
+  é reaberto.
 
 ### Regras de execução
 
@@ -120,11 +123,18 @@ a padrão do Windows; senão não adivinha e pede o técnico. Se todas estiverem
 | 1. Localizando a etiquetadora | 1. Localizando a etiquetadora |
 | 2. Fila **só da etiquetadora**: qualquer documento parado conta | 2. Conferindo tamanho (50,8 × 25,4 mm, retrato) |
 | 3–8. Se houver: cancelar, parar spooler, limpar arquivos da Zebra, iniciar, cancelar restantes, conferir vazia | 3. Se fora do padrão: corrigir nas preferências do usuário |
-| 9–10. Se não: TSPrint aberto? | 4. Calibrar (ZPL `~JC` / EPL `xa`) |
-| 11. Etiqueta de teste | 5. Etiqueta de teste |
+| 9. TSPrint imprimindo etiquetas nessa Zebra? Se não, troca | 4. Calibrar (ZPL `~JC` / EPL `xa`) |
+| 10–11. Se a fila estava normal: TSPrint aberto? | 5. TSPrint imprimindo etiquetas nessa Zebra? Se não, troca |
+| 12. Etiqueta de teste | 6. Etiqueta de teste |
 
 A etiqueta de teste é enviada direto à impressora (RAW), porque a página de teste do Windows sai em branco
 no padrão WP. Se a etiqueta de teste sai e a do UniLab não, o problema está no TSPrint/UniLab.
+
+**Configuração modelo (técnico):** com uma Zebra deixada exatamente no padrão, rode
+`WPSupportTools.exe --capturar-modelo`. Não altera nada: grava em `Área de Trabalho\WPST-configuracao-modelo`
+um `.wpst-modelo.json` por Zebra (preferências completas do driver, incluindo o bloco interno com escuridão,
+modo, offsets e gráficos, mais driver e versão) e uma cópia de reserva do Windows (`printui /Ss`).
+Passo a passo em `docs/padrao-etiquetadoras.md`.
 
 **Ainda não feito:** conferir/corrigir escuridão, velocidade, modo, offsets e gráficos (depende da
 "configuração modelo" — ver docs). Comandos de calibração a validar com cada modelo.

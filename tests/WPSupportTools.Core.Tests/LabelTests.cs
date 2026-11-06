@@ -180,6 +180,154 @@ public sealed class LabelTests : IDisposable
         Assert.Empty(_fake.Raw.Sent);
     }
 
+    // ---------- Selecionar a etiquetadora no TSPrint ----------
+
+    private const string OldTSPrintPrinter = "ZDesigner TLP 2844 (Copiar 5)";
+    private static string TSPrintExe => Modules.Printing.PrintingConstants.TSPrintExecutablePath!;
+
+    [Fact]
+    public void Changing_the_tsprint_label_printer_keeps_the_rest_of_the_file_identical()
+    {
+        var updated = TSPrintLabelPrinter.WithPrinter(TSPrintConfig, Zd230);
+
+        Assert.Equal(TSPrintConfig.TrimStart('﻿').Replace(OldTSPrintPrinter, Zd230), updated);
+        Assert.Equal(Zd230, TSPrintLabelPrinter.From(updated));
+    }
+
+    [Fact]
+    public void Folder_named_etiqueta_is_also_the_label_folder()
+    {
+        var config = TSPrintConfig.Replace("\"etiq\"", "\"Etiqueta\"");
+
+        Assert.Equal(OldTSPrintPrinter, TSPrintLabelPrinter.From(config));
+        Assert.Equal(Zd230, TSPrintLabelPrinter.From(TSPrintLabelPrinter.WithPrinter(config, Zd230)));
+    }
+
+    [Fact]
+    public void Printer_names_with_accents_are_written_like_tsprint_writes_them()
+    {
+        var updated = TSPrintLabelPrinter.WithPrinter(TSPrintConfig, "Zebra Recepção \"2\"");
+
+        Assert.Contains("""
+            "PRINTERNAME":"Zebra Recep\u00E7\u00E3o \"2\""
+            """, updated);
+        Assert.Equal("Zebra Recepção \"2\"", TSPrintLabelPrinter.From(updated));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("lixo")]
+    [InlineData("[{\"ID\":1,\"FOLDER\":\"root\",\"PRINTERNAME\":\"X\"}]")]
+    [InlineData("[{\"ID\":3,\"FOLDER\":\"etiq\"}]")]
+    public void Tsprint_config_without_label_folder_is_not_changed(string? config) =>
+        Assert.Null(TSPrintLabelPrinter.WithPrinter(config, Zd230));
+
+    private void TSPrintPointsToARemovedPrinter()
+    {
+        _fake.Printers.Add(Printer(Zd230, Zd230));          // a única Zebra ligada
+        _fake.TSPrintPrinterConfig = TSPrintConfig;        // TSPrint ainda aponta para a "(Copiar 5)", que não existe mais
+        _fake.Processes.ExistingFiles.Add(TSPrintExe);
+    }
+
+    [Fact]
+    public async Task Tsprint_pointing_to_another_printer_is_switched_to_the_zebra_and_reopened()
+    {
+        TSPrintPointsToARemovedPrinter();
+
+        var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(Zd230, TSPrintLabelPrinter.From(_fake.TSPrintPrinterConfig));
+        Assert.Contains("agora vão para", report.Results[8].Message);
+        Assert.Single(_fake.Processes.Closed);
+        Assert.Equal([TSPrintExe], _fake.Processes.Started);
+        Assert.True(_fake.Processes.TSPrintRunning);
+        Assert.Single(_fake.Raw.Sent);   // etiqueta de teste
+    }
+
+    [Fact]
+    public async Task Tsprint_already_on_the_zebra_is_left_untouched()
+    {
+        TSPrintPointsToARemovedPrinter();
+        _fake.TSPrintPrinterConfig = TSPrintConfig.Replace(OldTSPrintPrinter, Zd230);
+
+        var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Contains("já imprime", report.Results[8].Message);
+        Assert.Equal(0, _fake.TSPrintConfigWrites);
+        Assert.Empty(_fake.Processes.Closed);
+        Assert.Empty(_fake.Processes.Started);
+    }
+
+    [Fact]
+    public async Task Closed_tsprint_gets_the_zebra_and_is_opened_once()
+    {
+        TSPrintPointsToARemovedPrinter();
+        _fake.Processes.TSPrintRunning = false;
+
+        var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(Zd230, TSPrintLabelPrinter.From(_fake.TSPrintPrinterConfig));
+        Assert.Empty(_fake.Processes.Closed);
+        Assert.Equal([TSPrintExe], _fake.Processes.Started);   // aberto pela etapa "Abrindo o TSPrint"
+    }
+
+    [Fact]
+    public async Task Misconfigured_flow_also_switches_the_tsprint_label_printer()
+    {
+        TSPrintPointsToARemovedPrinter();
+        _fake.Preferences.DevModes[Zd230] = FakePreferences.NewDevMode(Zd230, 508, 254);
+
+        var report = await RunAsync(LabelSequences.CreateMisconfigured(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(Zd230, TSPrintLabelPrinter.From(_fake.TSPrintPrinterConfig));
+    }
+
+    [Fact]
+    public async Task Tsprint_that_does_not_close_is_not_changed()
+    {
+        TSPrintPointsToARemovedPrinter();
+        _fake.Processes.ClosesSuccessfully = false;
+
+        var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Equal(8, report.FailedStepIndex);
+        Assert.Contains("Feche o TSPrint", report.Results[8].Message);
+        Assert.Equal(0, _fake.TSPrintConfigWrites);
+        Assert.Empty(_fake.Raw.Sent);
+    }
+
+    [Fact]
+    public async Task Tsprint_config_that_cannot_be_written_fails_and_reopens_tsprint()
+    {
+        TSPrintPointsToARemovedPrinter();
+        _fake.TSPrintConfigReadOnly = true;
+
+        var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Contains("Nada foi alterado", report.Results[8].Message);
+        Assert.Equal(TSPrintConfig, _fake.TSPrintPrinterConfig);
+        Assert.True(_fake.Processes.TSPrintRunning);
+    }
+
+    [Fact]
+    public async Task Tsprint_without_label_folder_asks_for_support()
+    {
+        TSPrintPointsToARemovedPrinter();
+        _fake.TSPrintPrinterConfig = "[{\"ID\":1,\"FOLDER\":\"root\",\"PRINTERNAME\":\"SEC30CDA7FFC122\"}]";
+
+        var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Contains("\"etiq\"", report.Results[8].Message);
+        Assert.Empty(_fake.Processes.Closed);
+    }
+
     // ---------- DEVMODE ----------
 
     [Fact]

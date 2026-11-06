@@ -69,14 +69,14 @@ public sealed class PrintingFlowTests : IDisposable
     public async Task Normal_queue_with_tsprint_closed_tries_to_open_it()
     {
         _fake.Processes.TSPrintRunning = false;
+        _fake.Processes.ExistingFiles.Add(Modules.Printing.PrintingConstants.TSPrintExecutablePath!);
 
         var report = await RunAsync();
 
         Assert.Empty(_elevated.Requests);
-        // Caminho do TSPrint ainda não configurado: etapa simulada, nada aberto.
-        Assert.Equal(SequenceOutcome.Simulated, report.Outcome);
-        Assert.Equal(ProcedureOutcome.NotConfigured, report.Results[8].Outcome);
-        Assert.Empty(_fake.Processes.Started);
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(ProcedureOutcome.Success, report.Results[8].Outcome);
+        Assert.Equal([@"C:\Rede_Unilab\TSPrint\TSPrint.exe"], _fake.Processes.Started);
     }
 
     [Fact]

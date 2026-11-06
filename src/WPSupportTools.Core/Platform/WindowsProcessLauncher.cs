@@ -46,4 +46,35 @@ internal sealed class WindowsProcessLauncher : IProcessLauncher
             WorkingDirectory = Path.GetDirectoryName(executablePath),
         });
     }
+
+    public bool Close(int processId, TimeSpan timeout)
+    {
+        Process process;
+        try
+        {
+            process = Process.GetProcessById(processId);
+        }
+        catch (ArgumentException)
+        {
+            return true;   // já tinha saído
+        }
+
+        using (process)
+        {
+            try
+            {
+                // Encerra direto: o TSPrint fica na bandeja e pode pedir confirmação ao fechar.
+                process.Kill();
+                return process.WaitForExit(timeout);
+            }
+            catch (InvalidOperationException)
+            {
+                return true;   // saiu nesse meio-tempo
+            }
+            catch (Win32Exception)
+            {
+                return false;
+            }
+        }
+    }
 }

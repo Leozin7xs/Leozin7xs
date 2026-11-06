@@ -12,20 +12,21 @@ public static class PrintingConstants
     /// <summary>Nome do processo do TSPrint (TSPrint.exe).</summary>
     public const string TSPrintProcessName = "TSPrint";
 
-    /// <summary>
-    /// Caminho completo do TSPrint.exe nas unidades.
-    /// AGUARDANDO CONFIRMAÇÃO: enquanto for null, a etapa "Abrindo o TSPrint" fica em modo de simulação.
-    /// </summary>
-    public static string? TSPrintExecutablePath => null;
+    /// <summary>Caminho completo do TSPrint.exe nas unidades (mesma pasta Rede_Unilab da configuração).</summary>
+    public static string? TSPrintExecutablePath => @"C:\Rede_Unilab\TSPrint\TSPrint.exe";
 
     /// <summary>
-    /// Arquivo de impressoras do TSPrint (UniLab). Usado só para saber qual é a etiquetadora quando há
-    /// mais de uma ligada. O arquivo geral (geral_cnf.data, com usuário e senha) nunca é lido.
+    /// Arquivo de impressoras do TSPrint (UniLab): diz qual é a etiquetadora quando há mais de uma ligada
+    /// e é onde o app troca a impressora da pasta de etiquetas. O arquivo geral (geral_cnf.data, com
+    /// usuário e senha) nunca é lido.
     /// </summary>
     public const string TSPrintPrinterConfigPath = @"C:\Rede_Unilab\TSPrint\conf\print_doc_cnf.data";
 
-    /// <summary>Pasta do TSPrint cujas impressões são etiquetas ("FOLDER" em print_doc_cnf.data).</summary>
-    public const string TSPrintLabelFolder = "etiq";
+    /// <summary>Nomes da pasta do TSPrint cujas impressões são etiquetas ("FOLDER" em print_doc_cnf.data).</summary>
+    public static readonly IReadOnlyList<string> TSPrintLabelFolders = ["etiq", "etiqueta", "etiquetas"];
+
+    /// <summary>Tempo máximo esperando o TSPrint fechar antes de gravar a configuração.</summary>
+    public static readonly TimeSpan TSPrintCloseTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>Tempo máximo esperando o TSPrint aparecer depois de aberto.</summary>
     public static readonly TimeSpan TSPrintStartTimeout = TimeSpan.FromSeconds(15);
