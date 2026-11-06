@@ -82,6 +82,31 @@ public class SequenceRunnerTests
     }
 
     [Fact]
+    public async Task Step_blocked_inside_windows_still_times_out_and_the_sequence_continues()
+    {
+        using var hang = new ManualResetEventSlim(false);
+        var blocked = new FakeProcedure("blocked",
+            (_, _) => { hang.Wait(); return Task.FromResult(ProcedureResult.Ok("nunca")); },   // ignora o cancelamento
+            timeout: TimeSpan.FromMilliseconds(100));
+        var previous = SequenceRunner.HardTimeoutGrace;
+        SequenceRunner.HardTimeoutGrace = TimeSpan.FromMilliseconds(50);
+        try
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var report = await new SequenceRunner(isElevated: false).RunAsync(Sequence(blocked, FakeProcedure.Ok("next")), Sink);
+
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5));
+            Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+            Assert.Contains("Tempo limite", report.Results[0].Message);
+        }
+        finally
+        {
+            SequenceRunner.HardTimeoutGrace = previous;
+            hang.Set();
+        }
+    }
+
+    [Fact]
     public async Task Step_exceeding_its_timeout_fails()
     {
         var slow = new FakeProcedure("slow",

@@ -15,6 +15,9 @@ namespace WPSupportTools.Core.Execution;
 /// </summary>
 public sealed class SequenceRunner
 {
+    /// <summary>Folga, além do tempo limite da etapa, antes de abandonar uma etapa que não respondeu ao cancelamento.</summary>
+    internal static TimeSpan HardTimeoutGrace { get; set; } = TimeSpan.FromSeconds(2);
+
     private readonly bool _isElevated;
     private readonly IElevatedStepRunner? _elevatedRunner;
 
@@ -151,7 +154,19 @@ public sealed class SequenceRunner
 
         try
         {
-            return await step.ExecuteAsync(context, timeout.Token);
+            // A etapa roda em outra thread: se ela travar numa chamada do Windows que ignora o
+            // cancelamento (ex.: WMI com o spooler travado), o tempo limite vale mesmo assim e a
+            // sequência segue. A etapa travada é abandonada.
+            var running = Task.Run(() => step.ExecuteAsync(context, timeout.Token));
+            var finished = await Task.WhenAny(running, Task.Delay(step.Timeout + HardTimeoutGrace, cancellationToken));
+            if (finished != running)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _ = running.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                return ProcedureResult.Fail($"Tempo limite excedido ({step.Timeout.TotalSeconds:0} s): o Windows não respondeu.");
+            }
+
+            return await running;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

@@ -104,6 +104,32 @@ public sealed class LabelTests : IDisposable
         Assert.Contains("\"Outra\"", choice.Message);
     }
 
+    [Fact]
+    public async Task Windows_not_answering_the_printer_list_fails_with_guidance_instead_of_hanging()
+    {
+        using var hang = new ManualResetEventSlim(false);
+        _fake.PrinterListBlocksUntil = hang;
+        _fake.Printers.Add(Printer(Zd230, Zd230));
+        var previous = Modules.Printing.Labels.Procedures.LocateLabelPrinterProcedure.ListTimeout;
+        Modules.Printing.Labels.Procedures.LocateLabelPrinterProcedure.ListTimeout = TimeSpan.FromMilliseconds(200);
+        try
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
+
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5));
+            Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+            Assert.Equal(0, report.FailedStepIndex);
+            Assert.Contains("Impressora A4 não está imprimindo", report.Results[0].Message);
+            Assert.Empty(_fake.Raw.Sent);
+        }
+        finally
+        {
+            Modules.Printing.Labels.Procedures.LocateLabelPrinterProcedure.ListTimeout = previous;
+            hang.Set();
+        }
+    }
+
     // ---------- Arquivo do TSPrint (print_doc_cnf.data) ----------
 
     private const string TSPrintConfig =

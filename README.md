@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.1):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> **Status atual (v0.6.2):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
 > Pendente: caminho do `TSPrint.exe` nas unidades. Até lá, a etapa "Abrindo o TSPrint" é só simulada.
 
 ---
@@ -102,7 +102,8 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado ou 
 - **Na primeira falha a sequência para.** As etapas seguintes são marcadas como "não executadas",
   exceto religar o spooler, que sempre roda se ele tiver sido parado.
 - Não há novas tentativas nem ações alternativas automáticas.
-- Cada etapa tem tempo limite; estourar o tempo conta como falha.
+- Cada etapa tem tempo limite; estourar o tempo conta como falha — inclusive quando o Windows trava numa
+  chamada (ex.: spooler sem resposta): a etapa é abandonada e a janela volta a responder.
 - A janela não pode ser fechada no meio da manutenção (para não deixar o spooler parado).
 
 ## Etiquetadora (botão "Problema na etiquetadora")

@@ -9,7 +9,9 @@ internal sealed class WmiPrinterCatalog : IPrinterCatalog
     public IReadOnlyList<InstalledPrinter> List()
     {
         using var searcher = new ManagementObjectSearcher(
-            "SELECT Name, DriverName, PortName, WorkOffline, PrinterStatus, ExtendedPrinterStatus, Default FROM Win32_Printer");
+            new ManagementScope(@"root\cimv2"),
+            new ObjectQuery("SELECT Name, DriverName, PortName, WorkOffline, PrinterStatus, ExtendedPrinterStatus, Default FROM Win32_Printer"),
+            new System.Management.EnumerationOptions { Timeout = TimeSpan.FromSeconds(15), ReturnImmediately = true, Rewindable = false });
         using var collection = searcher.Get();
 
         var printers = new List<InstalledPrinter>();

@@ -39,7 +39,7 @@ internal sealed class FakePlatform : IDisposable
     public string? TSPrintPrinterConfig { get; set; }
 
     public PlatformServices Build() =>
-        new(Services, Queue, Processes, () => Now, new FakeCatalog(Printers), Preferences, Raw, new FakeSpool(this),
+        new(Services, Queue, Processes, () => Now, new FakeCatalog(this), Preferences, Raw, new FakeSpool(this),
             new FakeTSPrintConfig(this));
 
     private sealed class FakeTSPrintConfig(FakePlatform owner) : ITSPrintConfig
@@ -86,9 +86,16 @@ internal sealed class FakePlatform : IDisposable
         public IReadOnlyList<string> InstalledPrinterNames() => owner.RegistryPrinters;
     }
 
-    private sealed class FakeCatalog(List<InstalledPrinter> printers) : IPrinterCatalog
+    /// <summary>Simula o Windows travado ao listar impressoras (spooler sem resposta).</summary>
+    public ManualResetEventSlim? PrinterListBlocksUntil { get; set; }
+
+    private sealed class FakeCatalog(FakePlatform owner) : IPrinterCatalog
     {
-        public IReadOnlyList<InstalledPrinter> List() => printers;
+        public IReadOnlyList<InstalledPrinter> List()
+        {
+            owner.PrinterListBlocksUntil?.Wait();
+            return owner.Printers;
+        }
     }
 }
 
