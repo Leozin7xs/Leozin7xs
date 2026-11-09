@@ -1,6 +1,6 @@
 namespace WPSupportTools.Core.Platform;
 
-public sealed record RunningProcess(int Id, string? ProductName, string? FileVersion);
+public sealed record RunningProcess(int Id, string? ProductName, string? FileVersion, string? Path = null);
 
 /// <summary>Consulta e abre programas na sessão do usuário atual.</summary>
 public interface IProcessLauncher

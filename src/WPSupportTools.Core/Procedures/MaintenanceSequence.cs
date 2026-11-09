@@ -35,4 +35,7 @@ public sealed class MaintenanceSequence
     /// ex.: quais impressoras estão travadas. Qualquer outra chave é recusada por ele.
     /// </summary>
     public IReadOnlySet<string> TransferableStateKeys { get; }
+
+    /// <summary>Respostas dadas antes de executar (ex.: licença), colocadas no <see cref="RunState"/> no início.</summary>
+    public Dictionary<string, string> Inputs { get; } = new(StringComparer.Ordinal);
 }

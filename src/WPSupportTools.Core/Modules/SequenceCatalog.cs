@@ -17,6 +17,7 @@ public static class SequenceCatalog
             [PrintingFixSequence.Id] = PrintingFixSequence.Create,
             [LabelSequences.NotPrintingId] = LabelSequences.CreateNotPrinting,
             [LabelSequences.MisconfiguredId] = LabelSequences.CreateMisconfigured,
+            [Unilab.UnilabModule.InstallId] = Unilab.UnilabModule.CreateInstall,
         };
 
     public static IEnumerable<string> Ids => Factories.Keys;

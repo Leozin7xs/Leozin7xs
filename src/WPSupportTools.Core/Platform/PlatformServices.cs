@@ -10,7 +10,8 @@ public sealed record PlatformServices(
     IPrinterPreferences Preferences,
     IRawPrinter Raw,
     ISpoolFolder SpoolFolder,
-    ITSPrintConfig TSPrintConfig)
+    ITSPrintConfig TSPrintConfig,
+    IUnilabSetup Unilab)
 {
     private static readonly WinSpool WinSpoolApi = new();
 
@@ -23,5 +24,6 @@ public sealed record PlatformServices(
         WinSpoolApi,
         WinSpoolApi,
         new WindowsSpoolFolder(),
-        new TSPrintConfigFile());
+        new TSPrintConfigFile(),
+        new WindowsUnilabSetup());
 }

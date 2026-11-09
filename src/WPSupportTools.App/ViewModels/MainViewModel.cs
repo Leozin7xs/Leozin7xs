@@ -20,6 +20,7 @@ public enum Screen
     Setup,
     Home,
     Choose,
+    Input,
     Running,
     Completed,
     Failed,
@@ -45,6 +46,9 @@ public sealed class MainViewModel : ObservableObject
     private string _failureMessage = "";
     private SupportAction? _choiceAction;
     private string _completionHint = "";
+    private SupportAction? _inputAction;
+    private string _inputValue = "";
+    private string _inputError = "";
 
     public MainViewModel(IAppLog log, ISequenceExecutor executor, UsageReporter usage, UnitStore unitStore)
     {
@@ -66,6 +70,7 @@ public sealed class MainViewModel : ObservableObject
         SaveUnitCommand = new RelayCommand(SaveUnit);
         ChangeUnitCommand = new RelayCommand(StartChangingUnit, () => !IsBusy);
         CancelUnitCommand = new RelayCommand(() => CurrentScreen = Screen.Home, () => Unit is not null);
+        ConfirmInputCommand = new RelayCommand(ConfirmInput, () => !IsBusy);
         RefreshInstallState();
 
         Unit = _unitStore.Load();
@@ -268,6 +273,27 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _choiceAction, value);
     }
 
+    /// <summary>Ação que está pedindo uma informação antes de executar (ex.: licença do UniLab).</summary>
+    public SupportAction? InputAction
+    {
+        get => _inputAction;
+        private set => SetProperty(ref _inputAction, value);
+    }
+
+    public string InputValue
+    {
+        get => _inputValue;
+        set => SetProperty(ref _inputValue, value);
+    }
+
+    public string InputError
+    {
+        get => _inputError;
+        private set => SetProperty(ref _inputError, value);
+    }
+
+    public ICommand ConfirmInputCommand { get; }
+
     /// <summary>Orientação final da ação executada (ex.: "Tente imprimir novamente.").</summary>
     public string CompletionHint
     {
@@ -309,13 +335,40 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        if (action.Input is not null)
+        {
+            InputAction = action;
+            InputValue = "";
+            InputError = "";
+            CurrentScreen = Screen.Input;
+            return;
+        }
+
         _ = RunAsync(action);
     }
 
-    private async Task RunAsync(SupportAction action)
+    private void ConfirmInput()
+    {
+        if (InputAction?.Input is not { } prompt)
+            return;
+
+        var (value, error) = prompt.Normalize(InputValue);
+        if (value is null)
+        {
+            InputError = error ?? "Confira o que foi digitado.";
+            return;
+        }
+
+        InputError = "";
+        _ = RunAsync(InputAction, (prompt.StateKey, value));
+    }
+
+    private async Task RunAsync(SupportAction action, (string Key, string Value)? input = null)
     {
         if (IsBusy || action.SequenceId is null || !SequenceCatalog.TryCreate(action.SequenceId, out var sequence))
             return;
+        if (input is { } answer)
+            sequence.Inputs[answer.Key] = answer.Value;
 
         CompletionHint = action.CompletionHint;
         _sequence = sequence;

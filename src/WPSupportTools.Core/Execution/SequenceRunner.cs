@@ -36,6 +36,7 @@ public sealed class SequenceRunner
         MaintenanceSequence sequence, IRunEventSink sink, CancellationToken cancellationToken = default)
     {
         var context = new ProcedureContext(sink, _isElevated);
+        context.State.SetTexts(sequence.Inputs);
         var results = new ProcedureResult[sequence.Steps.Count];
         int? failedIndex = null;
 

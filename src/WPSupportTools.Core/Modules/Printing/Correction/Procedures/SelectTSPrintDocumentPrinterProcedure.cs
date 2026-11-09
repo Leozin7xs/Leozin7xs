@@ -1,3 +1,4 @@
+using WPSupportTools.Core.Modules.Unilab;
 using WPSupportTools.Core.Platform;
 using WPSupportTools.Core.Procedures;
 
@@ -27,15 +28,19 @@ public sealed class SelectTSPrintDocumentPrinterProcedure(PlatformServices platf
 
     public async Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken)
     {
+        var cloud = UnilabCloud.IsInstalled(platform);
         string? config;
         try
         {
-            config = platform.TSPrintConfig.ReadPrinterConfig();
+            config = cloud ? platform.Unilab.ReadCloudConfig() : platform.TSPrintConfig.ReadPrinterConfig();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return ProcedureResult.Fail("Não foi possível ler a configuração do TSPrint.", ex.Message);
         }
+
+        if (cloud && UnilabCloud.LicenseOf(config) is null)
+            return ProcedureResult.NotNeeded("O UniLab novo está sem licença (etapa anterior).");
 
         if (config is null)
         {
@@ -45,8 +50,10 @@ public sealed class SelectTSPrintDocumentPrinterProcedure(PlatformServices platf
             config = "[]";
         }
 
-        var current = TSPrintFolderPrinter.PrinterOf(config, PrintingConstants.TSPrintDocumentFolders);
-        var hasRoot = TSPrintFolderPrinter.HasFolder(config, PrintingConstants.TSPrintDocumentFolders);
+        var current = cloud
+            ? UnilabCloud.PrinterOf(config, PrintingConstants.TSPrintDocumentFolders)
+            : TSPrintFolderPrinter.PrinterOf(config, PrintingConstants.TSPrintDocumentFolders);
+        var hasRoot = !cloud && TSPrintFolderPrinter.HasFolder(config, PrintingConstants.TSPrintDocumentFolders);
 
         IReadOnlyList<InstalledPrinter> printers;
         var listing = Task.Run(platform.Printers.List, CancellationToken.None);
@@ -73,6 +80,21 @@ public sealed class SelectTSPrintDocumentPrinterProcedure(PlatformServices platf
             return choice.AlreadyWorking
                 ? ProcedureResult.Ok(choice.Message)
                 : ProcedureResult.Fail(choice.Message);
+        }
+
+        if (cloud)
+        {
+            List<UnilabCloud.PrinterRule> rules = [new("root", choice.SwitchTo.Name, Print: true)];
+            if (UnilabCloud.PrinterOf(config, ["pdf"]) is null &&
+                printers.FirstOrDefault(p => p.Name.Equals(PdfPrinter, StringComparison.OrdinalIgnoreCase)) is { } pdfPrinter)
+                rules.Add(new("pdf", pdfPrinter.Name, Print: false));
+            if (UnilabCloud.Apply(config, null, null, rules) is not { } cloudResult)
+                return ProcedureResult.Fail("Não foi possível alterar a configuração do UniLab (formato não reconhecido).");
+
+            context.Log(choice.Message);
+            return await TSPrintPrinterSwitch.ForUnilabCloud(platform).ApplyAsync(
+                context, () => platform.Unilab.WriteCloudConfig(cloudResult.Json),
+                $"TSPrint do UniLab: os documentos A4 agora vão para {choice.SwitchTo.Name}", cancellationToken);
         }
 
         var updated = hasRoot

@@ -22,6 +22,7 @@ internal sealed class FakePlatform : IDisposable
 
     public FakePlatform()
     {
+        Unilab.Processes = Processes;
         Directory.CreateDirectory(SpoolFolder);
         ConfiguredSpoolFolder = SpoolFolder;
         Modules.Printing.PrintingConstants.SpoolerSettleDelay = TimeSpan.Zero;
@@ -40,7 +41,9 @@ internal sealed class FakePlatform : IDisposable
 
     public PlatformServices Build() =>
         new(Services, Queue, Processes, () => Now, new FakeCatalog(this), Preferences, Raw, new FakeSpool(this),
-            new FakeTSPrintConfig(this));
+            new FakeTSPrintConfig(this), Unilab);
+
+    public FakeUnilab Unilab { get; } = new();
 
     /// <summary>Conteúdo do geral_cnf.data do TSPrint (null = não existe).</summary>
     public string? TSPrintGeneralConfig { get; set; }
@@ -256,20 +259,36 @@ internal sealed class FakeServices : IWindowsServices
 
 internal sealed class FakeProcesses : IProcessLauncher
 {
+    public const int TSPrintId = 1234, UnilabCloudId = 2000, LegacyUnilabId = 3000;
+
     public bool TSPrintRunning { get; set; } = true;
+    public bool UnilabCloudRunning { get; set; }
+    public bool LegacyUnilabRunning { get; set; }
     public bool OpensSuccessfully { get; set; } = true;
     public HashSet<string> ExistingFiles { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<string> Started { get; } = [];
 
-    public IReadOnlyList<RunningProcess> FindInCurrentSession(string processName) =>
-        processName == "TSPrint" && TSPrintRunning ? [new RunningProcess(1234, "TSPrint", "10.6.0.23")] : [];
+    public IReadOnlyList<RunningProcess> FindInCurrentSession(string processName)
+    {
+        var found = new List<RunningProcess>();
+        if (processName == "TSPrint" && TSPrintRunning)
+            found.Add(new RunningProcess(TSPrintId, "TSPrint", "10.6.0.23", @"C:\Rede_Unilab\TSPrint\TSPrint.exe"));
+        if (processName == "Unilab" && UnilabCloudRunning)
+            found.Add(new RunningProcess(UnilabCloudId, "Unilab", "0.1.58", Core.Modules.Unilab.UnilabCloud.Executable));
+        if (processName == "Unilab" && LegacyUnilabRunning)
+            found.Add(new RunningProcess(LegacyUnilabId, "Unilab", "1.0", Core.Modules.Unilab.UnilabCloud.LegacyExecutable));
+        return found;
+    }
 
     public bool FileExists(string path) => ExistingFiles.Contains(path);
 
     public void Start(string executablePath)
     {
         Started.Add(executablePath);
-        TSPrintRunning = OpensSuccessfully;
+        if (string.Equals(executablePath, Core.Modules.Unilab.UnilabCloud.Executable, StringComparison.OrdinalIgnoreCase))
+            UnilabCloudRunning = OpensSuccessfully;
+        else
+            TSPrintRunning = OpensSuccessfully;
     }
 
     public bool ClosesSuccessfully { get; set; } = true;
@@ -278,8 +297,94 @@ internal sealed class FakeProcesses : IProcessLauncher
     public bool Close(int processId, TimeSpan timeout)
     {
         Closed.Add(processId);
-        if (ClosesSuccessfully)
-            TSPrintRunning = false;
-        return ClosesSuccessfully;
+        if (!ClosesSuccessfully)
+            return false;
+        switch (processId)
+        {
+            case TSPrintId: TSPrintRunning = false; break;
+            case UnilabCloudId: UnilabCloudRunning = false; break;
+            case LegacyUnilabId: LegacyUnilabRunning = false; break;
+        }
+        return true;
+    }
+}
+
+/// <summary>Site da Uniware, instalador e UniLab novo "de mentira".</summary>
+internal sealed class FakeUnilab : IUnilabSetup
+{
+    public bool Is64BitWindows { get; set; } = true;
+    public string Page { get; set; } =
+        """<a href="UniSenha.exe">UniSenha.exe</a><a href="Unilab-0.1.58-win.exe">x</a><a href="Unilab-0.1.58-win-x64.exe">x</a>""";
+    public bool Offline { get; set; }
+    public long? AnnouncedSize { get; set; } = 108_367_491;
+    public ExecutableInfo Downloaded { get; set; } = new(108_367_491, "UNIWARE", "Unilab", "0.1.58");
+    public string? Installed { get; set; }
+    public bool InstallerWorks { get; set; } = true;
+    public List<Uri> Downloads { get; } = [];
+    public List<string> InstallerRuns { get; } = [];
+    public List<string> FoldersCreated { get; } = [];
+    public List<string> FoldersDeleted { get; } = [];
+    public string? CloudConfig { get; set; }
+    public int CloudWrites { get; private set; }
+    public List<string> LegacyStartup { get; } = ["Servidor de Impressão.lnk"];
+    public List<string> LegacyDesktop { get; } = ["Unilab.lnk"];
+    public FakeProcesses? Processes { get; set; }
+
+    public Task<string> GetPageAsync(Uri page, CancellationToken cancellationToken) =>
+        Offline ? throw new HttpRequestException("sem internet") : Task.FromResult(Page);
+
+    public Task<long?> GetSizeAsync(Uri file, CancellationToken cancellationToken) => Task.FromResult(AnnouncedSize);
+
+    public Task DownloadAsync(Uri file, string destination, Action<long> progress, CancellationToken cancellationToken)
+    {
+        Downloads.Add(file);
+        progress(Downloaded.Length / 2);
+        progress(Downloaded.Length);
+        return Task.CompletedTask;
+    }
+
+    public ExecutableInfo Inspect(string path) => Downloaded;
+
+    public string? InstalledVersion() => Installed;
+
+    public Task<int?> RunInstallerAsync(string path, string arguments, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        InstallerRuns.Add($"{Path.GetFileName(path)} {arguments}");
+        if (InstallerWorks)
+            Installed = Downloaded.ProductVersion;
+        return Task.FromResult<int?>(0);
+    }
+
+    public string CreatePrivateDownloadFolder()
+    {
+        var folder = @"C:\ProgramData\WPSupportTools\Downloads\" + FoldersCreated.Count;
+        FoldersCreated.Add(folder);
+        return folder;
+    }
+
+    public void DeleteFolder(string path) => FoldersDeleted.Add(path);
+
+    public string? ReadCloudConfig() => CloudConfig;
+
+    public void WriteCloudConfig(string content)
+    {
+        if (Processes?.UnilabCloudRunning == true)
+            throw new InvalidOperationException("Gravou com o UniLab aberto.");
+        CloudWrites++;
+        CloudConfig = content;
+    }
+
+    public IReadOnlyList<string> DisableLegacyStartup()
+    {
+        var moved = LegacyStartup.ToList();
+        LegacyStartup.Clear();
+        return moved;
+    }
+
+    public IReadOnlyList<string> RemoveLegacyUnilabShortcuts()
+    {
+        var moved = LegacyDesktop.ToList();
+        LegacyDesktop.Clear();
+        return moved;
     }
 }

@@ -17,10 +17,12 @@ internal sealed class WindowsProcessLauncher : IProcessLauncher
                 if (process.SessionId != session)
                     continue;
 
-                string? product = null, version = null;
+                string? product = null, version = null, path = null;
                 try
                 {
-                    var info = process.MainModule?.FileVersionInfo;
+                    var module = process.MainModule;
+                    path = module?.FileName;
+                    var info = module?.FileVersionInfo;
                     product = info?.ProductName;
                     version = info?.FileVersion;
                 }
@@ -29,7 +31,7 @@ internal sealed class WindowsProcessLauncher : IProcessLauncher
                     // Sem acesso aos detalhes do executável; o nome do processo basta para a verificação.
                 }
 
-                result.Add(new RunningProcess(process.Id, product, version));
+                result.Add(new RunningProcess(process.Id, product, version, path));
             }
         }
 

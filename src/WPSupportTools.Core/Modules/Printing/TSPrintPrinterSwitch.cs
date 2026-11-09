@@ -7,8 +7,21 @@ namespace WPSupportTools.Core.Modules.Printing;
 /// Altera a configuração do TSPrint com segurança: fecha o TSPrint (para ele não regravar o arquivo antigo),
 /// grava e reabre o TSPrint se ele estava aberto.
 /// </summary>
-internal sealed class TSPrintPrinterSwitch(PlatformServices platform, string? executablePath)
+internal sealed class TSPrintPrinterSwitch(
+    PlatformServices platform,
+    string? executablePath,
+    string processName = PrintingConstants.TSPrintProcessName,
+    Func<RunningProcess, bool>? isTarget = null,
+    string appName = "TSPrint")
 {
+    /// <summary>Para o UniLab novo: o TSPrint é embutido nele, então quem fecha e reabre é o UniLab.</summary>
+    public static TSPrintPrinterSwitch ForUnilabCloud(PlatformServices platform) =>
+        new(platform, Unilab.UnilabCloud.Executable, Unilab.UnilabCloud.ProcessName,
+            p => Unilab.ConfigureUnilabProcedure.IsCloud(p.Path), "UniLab");
+
+    private IReadOnlyList<RunningProcess> Running() =>
+        platform.Processes.FindInCurrentSession(processName).Where(p => isTarget?.Invoke(p) ?? true).ToList();
+
     public static TimeSpan MaxDuration =>
         PrintingConstants.TSPrintCloseTimeout + PrintingConstants.TSPrintStartTimeout + TimeSpan.FromSeconds(10);
 
@@ -23,15 +36,15 @@ internal sealed class TSPrintPrinterSwitch(PlatformServices platform, string? ex
     public async Task<ProcedureResult> ApplyAsync(
         ProcedureContext context, Action write, string done, CancellationToken cancellationToken)
     {
-        var running = platform.Processes.FindInCurrentSession(PrintingConstants.TSPrintProcessName);
+        var running = Running();
         foreach (var process in running)
         {
             if (!platform.Processes.Close(process.Id, PrintingConstants.TSPrintCloseTimeout))
                 return ProcedureResult.Fail(
-                    "Não foi possível fechar o TSPrint para alterar a configuração. Feche o TSPrint e tente de novo.");
+                    $"Não foi possível fechar o {appName} para alterar a configuração. Feche o {appName} e tente de novo.");
         }
         if (running.Count > 0)
-            context.Log("TSPrint: fechado para gravar a configuração.");
+            context.Log($"{appName}: fechado para gravar a configuração.");
 
         try
         {
@@ -54,8 +67,8 @@ internal sealed class TSPrintPrinterSwitch(PlatformServices platform, string? ex
         var reopened = await ReopenAsync(cancellationToken);
         context.State.Set(PrintingState.TSPrintRunning, reopened);
         return reopened
-            ? ProcedureResult.Ok($"{done}. TSPrint reaberto.")
-            : ProcedureResult.Fail($"{done}, mas o TSPrint não reabriu. Abra o TSPrint manualmente.");
+            ? ProcedureResult.Ok($"{done}. {appName} reaberto.")
+            : ProcedureResult.Fail($"{done}, mas o {appName} não reabriu. Abra o {appName} manualmente.");
     }
 
     private async Task<bool> ReopenAsync(CancellationToken cancellationToken)
@@ -68,7 +81,7 @@ internal sealed class TSPrintPrinterSwitch(PlatformServices platform, string? ex
         var deadline = platform.Now() + PrintingConstants.TSPrintStartTimeout;
         while (platform.Now() < deadline)
         {
-            if (platform.Processes.FindInCurrentSession(PrintingConstants.TSPrintProcessName).Count > 0)
+            if (Running().Count > 0)
                 return true;
 
             await Task.Delay(500, cancellationToken);

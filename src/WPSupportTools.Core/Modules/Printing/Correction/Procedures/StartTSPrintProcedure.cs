@@ -21,6 +21,21 @@ public sealed class StartTSPrintProcedure(PlatformServices platform, string? exe
 
     public async Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken)
     {
+        if (Unilab.UnilabCloud.IsInstalled(platform))
+        {
+            // UniLab novo: abre o UniLab (o TSPrint antigo fica desligado).
+            platform.Processes.Start(Unilab.UnilabCloud.Executable);
+            var limit = platform.Now() + PrintingConstants.TSPrintStartTimeout;
+            while (platform.Now() < limit)
+            {
+                if (platform.Processes.FindInCurrentSession(Unilab.UnilabCloud.ProcessName)
+                    .Any(p => Unilab.ConfigureUnilabProcedure.IsCloud(p.Path)))
+                    return ProcedureResult.Ok("UniLab aberto (com o TSPrint).");
+                await Task.Delay(500, cancellationToken);
+            }
+            return ProcedureResult.Fail("O UniLab foi aberto, mas não apareceu em execução.");
+        }
+
         if (executablePath is null)
         {
             context.Log("TSPrint: caminho do executável ainda não configurado; nenhuma ação executada.");

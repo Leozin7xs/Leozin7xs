@@ -4,9 +4,9 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.5):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
-> O app configura a conexão do TSPrint com o servidor da WP quando ela está fora do padrão e confere/troca
-> no TSPrint a impressora A4 (pasta `root`) e a etiquetadora (pasta `etiq`), criando as pastas que faltarem.
+> **Status atual (v0.6.6):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
+> conferem o TSPrint dele em vez do TSPrint antigo.
 
 ---
 
@@ -133,6 +133,35 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado ou 
 - Cada etapa tem tempo limite; estourar o tempo conta como falha — inclusive quando o Windows trava numa
   chamada (ex.: spooler sem resposta): a etapa é abandonada e a janela volta a responder.
 - A janela não pode ser fechada no meio da manutenção (para não deixar o spooler parado).
+
+## UniLab novo (botão "Instalar o UniLab")
+
+A atendente informa a **licença** (ex.: `@01451exemplo01`, o usuário do UniLab da estação). Depois:
+
+| # | Etapa | ID (log) | Admin |
+|---|---|---|---|
+| 1 | Conferindo a licença | `unilab.license` | não |
+| 2 | Procurando a versão mais nova do UniLab | `unilab.check` | não |
+| 3 | Baixando, conferindo e instalando o UniLab (só se não estiver na mais nova) | `unilab.install` | **sim** |
+| 4 | Preenchendo a licença e configurando o TSPrint | `unilab.configure` | não |
+| 5 | Desligando o TSPrint antigo | `unilab.legacy-tsprint` | não |
+| 6 | Abrindo o UniLab | `unilab.open` | não |
+
+- **Download:** sempre a versão mais nova de `https://uniware.com.br/updates/cloud/novo/` (x64 nos Windows de
+  64 bits). O instalador **não tem assinatura digital**; só é aceito se tiver o tamanho anunciado pelo site e os
+  dados internos UNIWARE / Unilab na versão do nome do arquivo. Baixar, conferir e instalar acontecem dentro do
+  processo de administrador, numa pasta protegida em ProgramData; o lado do usuário só informa o nome oficial do
+  arquivo e a versão. Instalação silenciosa (`/S`), para todos os usuários, em `C:\Rede_Unilab\Unilab`.
+- **Licença e TSPrint embutido** (`C:\rede_unilab\dados\Unilab\data\config.json`): `user` = licença;
+  TSPrint ligado com servidor `http://imp.unilab.app.br:3080/tsprint`, código ADM (5 primeiros dígitos),
+  usuário RDP (licença sem @) e senha (a do TSPrint antigo do PC ou a da WP; sem elas, código ADM + "aaa").
+  Pastas: `root` (A4: a do TSPrint antigo, se funcionando, senão a única funcionando), `pdf` (Print to PDF, só
+  baixa) e `etiq` (Zebra). O UniLab é fechado antes de gravar.
+- **TSPrint antigo:** os dois puxariam as mesmas impressões, então o antigo é fechado, sai da inicialização do
+  Windows e o atalho do UniLab antigo sai da área de trabalho (atalhos guardados em
+  `%LOCALAPPDATA%\WPSupportTools\Backups`).
+- **Depois:** nos PCs com `C:\Rede_Unilab\Unilab\Unilab.exe`, as etapas de TSPrint dos botões de impressora
+  usam o config.json do UniLab (pastas root/etiq) e abrem/reabrem o UniLab, nunca o TSPrint antigo.
 
 ## Etiquetadora (botão "Problema na etiquetadora")
 

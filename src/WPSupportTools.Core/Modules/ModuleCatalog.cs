@@ -1,4 +1,5 @@
 using WPSupportTools.Core.Modules.Printing;
+using WPSupportTools.Core.Modules.Unilab;
 
 namespace WPSupportTools.Core.Modules;
 
@@ -8,6 +9,7 @@ public static class ModuleCatalog
     public static IReadOnlyList<SupportModule> All { get; } =
     [
         PrintingModule.Definition,
-        // UniLab, Rede e Telefonia entrarão aqui quando forem implementados.
+        UnilabModule.Definition,
+        // Rede e Telefonia entrarão aqui quando forem implementados.
     ];
 }

@@ -1,3 +1,4 @@
+using WPSupportTools.Core.Modules.Unilab;
 using WPSupportTools.Core.Platform;
 using WPSupportTools.Core.Procedures;
 
@@ -25,6 +26,9 @@ public sealed class SelectTSPrintLabelPrinterProcedure(PlatformServices platform
         var printer = context.State.GetText(LabelState.PrinterName);
         if (printer is null)
             return ProcedureResult.NotNeeded("Etiquetadora não localizada.");
+
+        if (UnilabCloud.IsInstalled(platform))
+            return await UnilabCloudAsync(context, printer, cancellationToken);
 
         string? config;
         try
@@ -61,5 +65,34 @@ public sealed class SelectTSPrintLabelPrinterProcedure(PlatformServices platform
         context.Log($"TSPrint: etiquetas iam para '{current ?? "(nenhuma)"}'; trocando para '{printer}'.");
         return await new TSPrintPrinterSwitch(platform, executablePath)
             .ApplyAsync(context, updated, "as etiquetas", printer, cancellationToken);
+    }
+
+    /// <summary>UniLab novo: a pasta "etiq" fica no TSPrint embutido (config.json).</summary>
+    private async Task<ProcedureResult> UnilabCloudAsync(ProcedureContext context, string printer, CancellationToken cancellationToken)
+    {
+        string? config;
+        try
+        {
+            config = platform.Unilab.ReadCloudConfig();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return ProcedureResult.Fail("Não foi possível ler a configuração do UniLab.", ex.Message);
+        }
+
+        if (UnilabCloud.LicenseOf(config) is null)
+            return ProcedureResult.NotNeeded("O UniLab novo está sem licença (etapa anterior).");
+
+        var current = UnilabCloud.PrinterOf(config, PrintingConstants.TSPrintLabelFolders);
+        if (current is not null && string.Equals(current, printer.Trim(), StringComparison.OrdinalIgnoreCase))
+            return ProcedureResult.Ok($"O TSPrint do UniLab já imprime as etiquetas na {printer}.");
+
+        if (UnilabCloud.Apply(config, null, null, [new("etiq", printer, Print: true)]) is not { } result)
+            return ProcedureResult.Fail("A configuração do UniLab não está num formato reconhecido. Chame o suporte.");
+
+        context.Log($"TSPrint do UniLab: etiquetas iam para '{current ?? "(nenhuma)"}'; trocando para '{printer}'.");
+        return await TSPrintPrinterSwitch.ForUnilabCloud(platform).ApplyAsync(
+            context, () => platform.Unilab.WriteCloudConfig(result.Json),
+            $"TSPrint do UniLab: as etiquetas agora vão para {printer}", cancellationToken);
     }
 }

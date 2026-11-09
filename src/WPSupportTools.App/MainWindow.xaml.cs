@@ -14,6 +14,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = _viewModel = viewModel;
         viewModel.RequestClose += (_, _) => Close();
+
+        // Na tela da licença, o cursor já fica no campo para digitar.
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.CurrentScreen) && viewModel.CurrentScreen == Screen.Input)
+                Dispatcher.BeginInvoke(() => InputBox.Focus(), System.Windows.Threading.DispatcherPriority.Input);
+        };
     }
 
     protected override void OnClosing(CancelEventArgs e)

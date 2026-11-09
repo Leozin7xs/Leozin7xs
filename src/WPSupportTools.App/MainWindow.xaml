@@ -110,6 +110,27 @@
 
         <Grid Grid.Row="1" Margin="32,28">
 
+            <!-- ======================= Pergunta antes de executar (ex.: licença) ======================= -->
+            <StackPanel VerticalAlignment="Center"
+                        Visibility="{Binding CurrentScreen, Converter={StaticResource ScreenVisibility}, ConverterParameter=Input}">
+                <TextBlock Style="{StaticResource Heading}" Text="{Binding InputAction.Input.Question}" TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource Body}" Margin="0,6,0,22" Text="{Binding InputAction.Input.Help}" TextWrapping="Wrap" />
+
+                <Border CornerRadius="8" BorderThickness="2" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceBrush}">
+                    <TextBox x:Name="InputBox" Text="{Binding InputValue, UpdateSourceTrigger=PropertyChanged}" FontSize="16"
+                             Padding="10,10" BorderThickness="0" Background="Transparent" MaxLength="80" />
+                </Border>
+                <TextBlock Style="{StaticResource Body}" FontSize="12" Margin="2,6,0,0" Text="{Binding InputAction.Input.Example}" />
+
+                <TextBlock Text="{Binding InputError}" Foreground="{StaticResource DangerBrush}" FontSize="13" FontWeight="SemiBold"
+                           TextWrapping="Wrap" Margin="0,14,0,0" />
+
+                <Button Style="{StaticResource PrimaryButton}" Content="Continuar" Command="{Binding ConfirmInputCommand}"
+                        IsDefault="True" Margin="0,16,0,0" />
+                <Button Style="{StaticResource LinkButton}" Content="Voltar" Command="{Binding BackHomeCommand}"
+                        HorizontalAlignment="Center" Margin="0,8,0,0" />
+            </StackPanel>
+
             <!-- ======================= Primeiro acesso: unidade ======================= -->
             <StackPanel VerticalAlignment="Center"
                         Visibility="{Binding CurrentScreen, Converter={StaticResource ScreenVisibility}, ConverterParameter=Setup}">
