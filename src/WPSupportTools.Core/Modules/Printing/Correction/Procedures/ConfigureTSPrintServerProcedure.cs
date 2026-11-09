@@ -93,8 +93,7 @@ public sealed class ConfigureTSPrintServerProcedure(PlatformServices platform, s
         if (UnilabCloud.LicenseOf(current) is not { } license)
             return ProcedureResult.Fail("O UniLab novo deste PC está sem licença. Use o botão \"Instalar o UniLab\" para preencher.");
 
-        var password = UnilabCloud.PasswordToWrite(license, current, token, TSPrintServerSettingsToken(platform));
-        var result = UnilabCloud.Apply(current, license, password, []);
+        var result = UnilabCloud.Apply(current, license, UnilabCloud.Password(license), []);
         if (result is null)
             return ProcedureResult.Fail("A configuração do UniLab não está num formato reconhecido. Chame o suporte.");
         if (result.Changes.Count == 0)
@@ -106,18 +105,6 @@ public sealed class ConfigureTSPrintServerProcedure(PlatformServices platform, s
             "TSPrint do UniLab ligado e conectado ao servidor da WP", cancellationToken);
     }
 
-    private static string? TSPrintServerSettingsToken(PlatformServices platform)
-    {
-        try
-        {
-            return System.Text.Json.Nodes.JsonNode.Parse(platform.TSPrintConfig.ReadGeneralConfig()?.Trim('\uFEFF') ?? "null")?["token"]
-                ?.GetValue<string>() is { Length: > 0 } t ? t : null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
 
     private string? ReadUnilabUser(ProcedureContext context)
     {

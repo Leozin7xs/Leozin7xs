@@ -166,14 +166,10 @@ public sealed class InstallUnilabProcedure(PlatformServices platform) : IProcedu
 /// Preenche a licença no UniLab novo e liga o TSPrint embutido nele: servidor, código ADM, usuário RDP,
 /// senha e as pastas root (A4), pdf e etiq (Zebra). Fecha o UniLab novo antes de gravar.
 /// </summary>
-public sealed class ConfigureUnilabProcedure(PlatformServices platform, string? buildToken) : IProcedure
+public sealed class ConfigureUnilabProcedure(PlatformServices platform) : IProcedure
 {
     internal static TimeSpan ListTimeout { get; set; } = TimeSpan.FromSeconds(20);
     private const string PdfPrinter = "Microsoft Print to PDF";
-
-    public ConfigureUnilabProcedure(PlatformServices platform) : this(platform, TSPrintServerSettings.BuildToken())
-    {
-    }
 
     public string Id => "unilab.configure";
     public string DisplayName => "Preenchendo a licença e configurando o TSPrint";
@@ -221,11 +217,8 @@ public sealed class ConfigureUnilabProcedure(PlatformServices platform, string? 
                 ? "etiquetadora não definida (" + zebra.Message.TrimEnd('.') + "); pasta etiq criada sem impressora"
                 : "etiquetadora não encontrada; pasta etiq criada sem impressora");
 
-        // Senha do servidor: sempre a da WP (build); sem ela, a do TSPrint antigo ou o padrão da Uniware.
         var current = SafeRead(platform.Unilab.ReadCloudConfig);
-        var password = UnilabCloud.PasswordToWrite(license, current, buildToken,
-            TokenOf(SafeRead(platform.TSPrintConfig.ReadGeneralConfig)));
-        var result = UnilabCloud.Apply(current, license, password, rules);
+        var result = UnilabCloud.Apply(current, license, UnilabCloud.Password(license), rules);
         if (result is null)
             return ProcedureResult.Fail("A configuração do UniLab não está num formato reconhecido. Chame o suporte.");
 
@@ -257,9 +250,6 @@ public sealed class ConfigureUnilabProcedure(PlatformServices platform, string? 
 
     internal static bool IsCloud(string? path) =>
         path is not null && string.Equals(Path.GetFullPath(path), Path.GetFullPath(UnilabCloud.Executable), StringComparison.OrdinalIgnoreCase);
-
-    private static string? TokenOf(string? general) =>
-        general is null ? null : System.Text.Json.Nodes.JsonNode.Parse(general.Trim('\uFEFF'))?["token"]?.GetValue<string>();
 
     private static string? SafeRead(Func<string?> read)
     {

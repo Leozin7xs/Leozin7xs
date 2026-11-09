@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -47,35 +46,11 @@ public static partial class UnilabCloud
     public static string RdpUser(string license) => license.Replace("@", "");
 
     /// <summary>
-    /// Senha do TSPrint: a do servidor da WP (token do TSPrint antigo, que é a senha em hexadecimal,
-    /// como o próprio UniLab lê); sem ele, o padrão da Uniware (código ADM + "aaa").
+    /// Senha do TSPrint embutido: código ADM + "aaa" (padrão da Uniware), a que o servidor aceita. A do TSPrint
+    /// antigo (e a do segredo do build) é recusada com 401. A tela do UniLab sempre mostra o campo vazio, mesmo com
+    /// senha gravada; por isso o app sempre grava esta.
     /// </summary>
-    public static string Password(string license, string? legacyToken)
-    {
-        if (!string.IsNullOrWhiteSpace(legacyToken) && legacyToken.Length % 2 == 0 && HexPattern().IsMatch(legacyToken))
-        {
-            var text = Encoding.UTF8.GetString(Convert.FromHexString(legacyToken));
-            if (text.Length > 0 && text.All(c => c >= ' ' && c <= '~'))
-                return text;
-        }
-        return AdminCode(license) + "aaa";
-    }
-
-    /// <summary>
-    /// Senha a gravar no TSPrint embutido, ou null para manter a atual.
-    /// A senha da WP (do build, igual em todas as unidades) sempre vence: o servidor recusa (401) a do
-    /// TSPrint antigo quando ela ficou desatualizada. Sem ela (compilação local), só preenche se estiver vazia,
-    /// com a do TSPrint antigo ou o padrão da Uniware.
-    /// </summary>
-    public static string? PasswordToWrite(string license, string? current, string? buildToken, string? legacyToken)
-    {
-        if (!string.IsNullOrWhiteSpace(buildToken))
-            return Password(license, buildToken);
-        return HasPassword(current) ? null : Password(license, legacyToken);
-    }
-
-    [GeneratedRegex("^[0-9A-Fa-f]+$")]
-    private static partial Regex HexPattern();
+    public static string Password(string license) => AdminCode(license) + "aaa";
 
     /// <summary>
     /// Regra de impressão de uma pasta do TSPrint embutido. Sem impressora (null), a pasta só é criada, se ainda
@@ -175,9 +150,6 @@ public static partial class UnilabCloud
 
     /// <summary>Este PC tem o UniLab novo (com o TSPrint embutido)?</summary>
     public static bool IsInstalled(Platform.PlatformServices platform) => platform.Processes.FileExists(Executable);
-
-    /// <summary>O TSPrint embutido já tem senha?</summary>
-    public static bool HasPassword(string? current) => Field(current, c => Text(c["tsprint"]?["password"])) is not null;
 
     /// <summary>Licença gravada no config.json, ou null.</summary>
     public static string? LicenseOf(string? current) => Field(current, c => Text(c["user"]));

@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.7):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> **Status atual (v0.6.8):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
 > (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
 > conferem o TSPrint dele em vez do TSPrint antigo.
 
@@ -154,10 +154,10 @@ A atendente informa a **licença** (ex.: `@01451exemplo01`, o usuário do UniLab
   arquivo e a versão. Instalação silenciosa (`/S`), para todos os usuários, em `C:\Rede_Unilab\Unilab`.
 - **Licença e TSPrint embutido** (`C:\rede_unilab\dados\Unilab\data\config.json`): `user` = licença e
   "Iniciar maximizado" marcado; TSPrint ligado com servidor `http://imp.unilab.app.br:3080/tsprint`, código ADM
-  (5 primeiros dígitos), usuário RDP (licença sem @) e senha. A senha é **sempre a da WP** (segredo
-  `WPST_TSPRINT_TOKEN`), mesmo que já exista outra: a do TSPrint antigo pode estar desatualizada e o servidor
-  recusa (401 "Autenticação de cliente inválida"). Só nas compilações sem o segredo o app usa a do TSPrint antigo
-  (ou código ADM + "aaa"), e apenas se o campo estiver vazio.
+  (5 primeiros dígitos), usuário RDP (licença sem @) e senha. A senha é **sempre código ADM + "aaa"** (ex.:
+  `01451aaa`), gravada mesmo que já exista outra: a do TSPrint antigo (e a do segredo `WPST_TSPRINT_TOKEN`) o
+  servidor recusa (401 "Autenticação de cliente inválida"). A tela do UniLab sempre mostra o campo Senha vazio,
+  mesmo com senha gravada.
   Pastas: `root` (A4: a do TSPrint antigo, se funcionando, senão a única funcionando), `pdf` (Print to PDF, só
   baixa) e `etiq` (Zebra; baixar e imprimir, sem girar, tamanho real). As pastas `root` e `etiq` são sempre
   criadas; sem impressora encontrada, ficam sem impressora e com baixar/imprimir em "Não" (com "Sim" e sem

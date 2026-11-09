@@ -47,24 +47,7 @@ public sealed class UnilabTests : IDisposable
     {
         Assert.Equal("01451", UnilabCloud.AdminCode(License));
         Assert.Equal("01451exemplo01", UnilabCloud.RdpUser(License));
-        Assert.Equal("S3nh4WPx", UnilabCloud.Password(License, Hex));       // senha da WP (token do TSPrint antigo)
-        Assert.Equal("01451aaa", UnilabCloud.Password(License, null));      // padrão da Uniware
-        Assert.Equal("01451aaa", UnilabCloud.Password(License, "zz"));
-    }
-
-    [Fact]
-    public void Wp_password_always_replaces_a_wrong_one_and_without_it_the_current_is_kept()
-    {
-        var wp = Convert.ToHexString(Encoding.UTF8.GetBytes("SenhaWP1"));
-        const string withOldPassword = """{"user":"@01451exemplo01","tsprint":{"password":"antiga"}}""";
-        const string withoutPassword = """{"user":"@01451exemplo01","tsprint":{"password":""}}""";
-
-        // Senha da WP (build): sempre vence, mesmo com outra já gravada (o servidor recusava a antiga: 401).
-        Assert.Equal("SenhaWP1", UnilabCloud.PasswordToWrite(License, withOldPassword, wp, Hex));
-        // Sem a da WP (compilação local): mantém a atual; se estiver vazia, usa a do TSPrint antigo ou o padrão.
-        Assert.Null(UnilabCloud.PasswordToWrite(License, withOldPassword, null, Hex));
-        Assert.Equal("S3nh4WPx", UnilabCloud.PasswordToWrite(License, withoutPassword, null, Hex));
-        Assert.Equal("01451aaa", UnilabCloud.PasswordToWrite(License, null, null, null));
+        Assert.Equal("01451aaa", UnilabCloud.Password(License));   // padrão da Uniware, o que o servidor aceita
     }
 
     // ---------- Página e instalador ----------
@@ -217,7 +200,7 @@ public sealed class UnilabTests : IDisposable
         Assert.Equal(Brother, UnilabCloud.PrinterOf(config, ["root"]));
         Assert.Equal("Microsoft Print to PDF", UnilabCloud.PrinterOf(config, ["pdf"]));
         Assert.Equal(Zd230, UnilabCloud.PrinterOf(config, ["etiq"]));
-        Assert.Equal("S3nh4WPx", (string?)JsonNode.Parse(config)!["tsprint"]!["password"]);
+        Assert.Equal("01451aaa", (string?)JsonNode.Parse(config)!["tsprint"]!["password"]);   // não a do TSPrint antigo
 
         Assert.False(_fake.Processes.TSPrintRunning);                  // TSPrint antigo fechado
         Assert.Empty(_fake.Unilab.LegacyStartup);                     // e fora da inicialização
@@ -299,7 +282,7 @@ public sealed class UnilabTests : IDisposable
         _fake.Processes.UnilabCloudRunning = true;
         _fake.Printers.Add(new InstalledPrinter("Brother DCP-T820DW", "Microsoft IPP Class Driver", "WSD-1", true, false));
         _fake.Printers.Add(new InstalledPrinter(Brother, "Brother DCP-T830DW series", "USB001", false, true));
-        _fake.Unilab.CloudConfig = UnilabCloud.Apply(null, License, "S3nh4WPx", [new("root", "Brother DCP-T820DW", true)])!.Json;
+        _fake.Unilab.CloudConfig = UnilabCloud.Apply(null, License, UnilabCloud.Password(License), [new("root", "Brother DCP-T820DW", true)])!.Json;
 
         var report = await new SequenceRunner(isElevated: false)
             .RunAsync(PrintingFixSequence.Create(_fake.Build()), new DelegateRunEventSink(_ => { }));
