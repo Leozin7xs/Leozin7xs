@@ -35,6 +35,7 @@ public static class LabelSequences
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
+            new ConfigureTSPrintServerProcedure(platform),
             new SelectTSPrintLabelPrinterProcedure(platform),
             new ConditionalProcedure(new CheckTSPrintProcedure(platform), PrintingFixSequence.OnlyIfQueueNormal),
             new ConditionalProcedure(new StartTSPrintProcedure(platform),
@@ -58,6 +59,7 @@ public static class LabelSequences
             new ConditionalProcedure(new FixLabelSizeProcedure(platform),
                 s => s.IsSet(LabelState.SizeNeedsFix) ? null : "Não necessário: o tamanho já está no padrão."),
             new CalibrateLabelPrinterProcedure(platform),
+            new ConfigureTSPrintServerProcedure(platform),
             new SelectTSPrintLabelPrinterProcedure(platform),
             new PrintTestLabelProcedure(platform),
         ]);

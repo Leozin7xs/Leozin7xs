@@ -10,6 +10,8 @@ namespace WPSupportTools.Core.Modules.Printing;
 /// </summary>
 public static class TSPrintFolderPrinter
 {
+    private static readonly char[] TrimChars = ['\uFEFF', ' ', '\r', '\n', '\t'];
+
     /// <summary>A pasta tem um dos nomes aceitos (sem diferenciar maiúsculas).</summary>
     public static bool IsFolder(string? folder, IReadOnlyCollection<string> names) =>
         folder is not null && names.Contains(folder.Trim(), StringComparer.OrdinalIgnoreCase);
@@ -22,7 +24,7 @@ public static class TSPrintFolderPrinter
 
         try
         {
-            using var doc = JsonDocument.Parse(config.Trim('﻿', ' ', '\r', '\n', '\t'));
+            using var doc = JsonDocument.Parse(config.Trim(TrimChars));
             if (doc.RootElement.ValueKind != JsonValueKind.Array)
                 return null;
 
@@ -108,6 +110,67 @@ public static class TSPrintFolderPrinter
         {
         }
         return null;
+    }
+
+    /// <summary>A pasta existe no arquivo (com ou sem impressora).</summary>
+    public static bool HasFolder(string? config, IReadOnlyCollection<string> folders) =>
+        Entries(config)?.Any(e => TryGetString(e, "FOLDER", out var f) && IsFolder(f, folders)) == true;
+
+    /// <summary>
+    /// O mesmo arquivo com uma pasta nova no fim da lista (o resto fica idêntico). A entrada nova segue
+    /// os campos das que já existem (ex.: "girar 180°" nas versões novas do TSPrint), com ID seguinte,
+    /// DOWNLOAD "Sim" e PRINT "Sim"/"Não". Null se o arquivo não for uma lista reconhecida.
+    /// </summary>
+    public static string? WithFolderAdded(string? config, string folder, string printerName, bool print = true)
+    {
+        var text = string.IsNullOrWhiteSpace(config) ? "[]" : config.Trim(TrimChars);
+        var entries = Entries(text);
+        if (entries is null || !text.EndsWith(']'))
+            return null;
+
+        var template = entries.FirstOrDefault(e => e.ValueKind == JsonValueKind.Object);
+        var nextId = entries.Select(e => e.ValueKind == JsonValueKind.Object && e.TryGetProperty("ID", out var id) &&
+                                          id.TryGetInt32(out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1;
+
+        var fields = new List<string>();
+        var keys = template.ValueKind == JsonValueKind.Object
+            ? template.EnumerateObject().Select(p => p.Name).ToList()
+            : ["ID", "FOLDER", "PRINTERNAME", "DOWNLOAD", "PRINT"];
+        foreach (var key in keys)
+        {
+            var value = key.ToUpperInvariant() switch
+            {
+                "ID" => nextId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "FOLDER" => Quote(folder),
+                "PRINTERNAME" => Quote(printerName.Trim()),
+                "DOWNLOAD" => Quote("Sim"),
+                "PRINT" => Quote(print ? "Sim" : "Não"),
+                _ => template.GetProperty(key).GetRawText(),   // demais campos: igual às outras pastas
+            };
+            fields.Add($"{Quote(key)}:{value}");
+        }
+
+        var entry = "{" + string.Join(",", fields) + "}";
+        var body = text[..^1].TrimEnd();
+        var result = body + (entries.Count > 0 ? "," : "") + entry + "]";
+        return Entries(result) is not null ? result : null;
+    }
+
+    private static List<JsonElement>? Entries(string? config)
+    {
+        if (string.IsNullOrWhiteSpace(config))
+            return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(config.Trim(TrimChars));
+            return doc.RootElement.ValueKind == JsonValueKind.Array
+                ? doc.RootElement.EnumerateArray().Select(e => e.Clone()).ToList()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Texto JSON no estilo do TSPrint: acentos e símbolos fora do ASCII como ã.</summary>

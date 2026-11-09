@@ -18,6 +18,8 @@ public sealed class SelectTSPrintDocumentPrinterProcedure(PlatformServices platf
     {
     }
 
+    private const string PdfPrinter = "Microsoft Print to PDF";
+
     public string Id => "printing.tsprint-printer";
     public string DisplayName => "Conferindo a impressora A4 no TSPrint";
     public bool RequiresElevation => false;
@@ -36,11 +38,15 @@ public sealed class SelectTSPrintDocumentPrinterProcedure(PlatformServices platf
         }
 
         if (config is null)
-            return ProcedureResult.NotNeeded("TSPrint não encontrado neste computador.");
+        {
+            // Sem arquivo de impressoras mas com o TSPrint configurado: começa uma lista vazia.
+            if (platform.TSPrintConfig.ReadGeneralConfig() is null)
+                return ProcedureResult.NotNeeded("TSPrint não encontrado neste computador.");
+            config = "[]";
+        }
 
         var current = TSPrintFolderPrinter.PrinterOf(config, PrintingConstants.TSPrintDocumentFolders);
-        if (current is null)
-            return ProcedureResult.NotNeeded("O TSPrint não tem impressora A4 (pasta \"root\") configurada.");
+        var hasRoot = TSPrintFolderPrinter.HasFolder(config, PrintingConstants.TSPrintDocumentFolders);
 
         IReadOnlyList<InstalledPrinter> printers;
         var listing = Task.Run(platform.Printers.List, CancellationToken.None);
@@ -57,9 +63,11 @@ public sealed class SelectTSPrintDocumentPrinterProcedure(PlatformServices platf
         foreach (var p in printers.Where(DocumentPrinterSelector.IsPhysicalDocumentPrinter))
             context.Log($"Impressora: '{p.Name}' (driver {p.DriverName}, porta {p.PortName}, " +
                         $"{(p.IsOffline ? "desligada/sem comunicação" : p.Problem ?? "funcionando")}{(p.IsDefault ? ", padrão" : "")}).");
-        context.Log($"TSPrint: documentos A4 vão para '{current}'.");
+        context.Log(current is null ? "TSPrint: sem impressora A4 configurada." : $"TSPrint: documentos A4 vão para '{current}'.");
 
-        var choice = DocumentPrinterSelector.Select(printers, current);
+        var choice = current is null
+            ? DocumentPrinterSelector.SelectForEmptyTSPrint(printers)
+            : DocumentPrinterSelector.Select(printers, current);
         if (choice.SwitchTo is null)
         {
             return choice.AlreadyWorking
@@ -67,7 +75,17 @@ public sealed class SelectTSPrintDocumentPrinterProcedure(PlatformServices platf
                 : ProcedureResult.Fail(choice.Message);
         }
 
-        var updated = TSPrintFolderPrinter.WithPrinter(config, PrintingConstants.TSPrintDocumentFolders, choice.SwitchTo.Name);
+        var updated = hasRoot
+            ? TSPrintFolderPrinter.WithPrinter(config, PrintingConstants.TSPrintDocumentFolders, choice.SwitchTo.Name)
+            : TSPrintFolderPrinter.WithFolderAdded(config, PrintingConstants.TSPrintDocumentFolders[0], choice.SwitchTo.Name);
+
+        // Pasta "pdf" do padrão WP (baixa, mas não imprime), se faltar e o Windows tiver o "Microsoft Print to PDF".
+        if (updated is not null && !TSPrintFolderPrinter.HasFolder(updated, ["pdf"]) &&
+            printers.FirstOrDefault(p => p.Name.Equals(PdfPrinter, StringComparison.OrdinalIgnoreCase)) is { } pdf)
+        {
+            updated = TSPrintFolderPrinter.WithFolderAdded(updated, "pdf", pdf.Name, print: false) ?? updated;
+        }
+
         if (updated is null)
             return ProcedureResult.Fail("Não foi possível alterar a configuração do TSPrint (formato não reconhecido).");
 

@@ -17,6 +17,12 @@
     <AssemblyMetadata Include="UpdatePublicKey" Value="$(UpdatePublicKey)" />
   </ItemGroup>
 
+  <!-- Senha do servidor do TSPrint (token), injetada pela compilação no GitHub a partir do segredo
+       WPST_TSPRINT_TOKEN. Fica fora do código; compilações locais saem sem ela. -->
+  <ItemGroup Condition="'$(TSPrintToken)' != ''">
+    <AssemblyMetadata Include="TSPrintToken" Value="$(TSPrintToken)" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\WPSupportTools.Core\WPSupportTools.Core.csproj" />
   </ItemGroup>

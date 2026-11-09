@@ -25,6 +25,9 @@ public static class PrintingConstants
     /// <summary>Nomes da pasta do TSPrint cujas impressões são etiquetas ("FOLDER" em print_doc_cnf.data).</summary>
     public static readonly IReadOnlyList<string> TSPrintLabelFolders = ["etiq", "etiqueta", "etiquetas"];
 
+    /// <summary>Arquivo geral do TSPrint (servidor, usuário RDP, senha em token).</summary>
+    public const string TSPrintGeneralConfigPath = @"C:\Rede_Unilab\TSPrint\conf\geral_cnf.data";
+
     /// <summary>Pasta do TSPrint dos documentos comuns (impressora A4) em print_doc_cnf.data.</summary>
     public static readonly IReadOnlyList<string> TSPrintDocumentFolders = ["root"];
 

@@ -4,31 +4,38 @@ using WPSupportTools.Core.Procedures;
 namespace WPSupportTools.Core.Modules.Printing;
 
 /// <summary>
-/// Troca a impressora de uma pasta do TSPrint: fecha o TSPrint (para ele não regravar o arquivo antigo),
-/// grava só o nome da impressora dessa pasta e reabre o TSPrint se ele estava aberto.
+/// Altera a configuração do TSPrint com segurança: fecha o TSPrint (para ele não regravar o arquivo antigo),
+/// grava e reabre o TSPrint se ele estava aberto.
 /// </summary>
 internal sealed class TSPrintPrinterSwitch(PlatformServices platform, string? executablePath)
 {
     public static TimeSpan MaxDuration =>
         PrintingConstants.TSPrintCloseTimeout + PrintingConstants.TSPrintStartTimeout + TimeSpan.FromSeconds(10);
 
-    /// <param name="what">Ex.: "as etiquetas", "os documentos A4".</param>
+    /// <summary>Troca a impressora no arquivo de impressoras. <paramref name="what"/>: "as etiquetas", "os documentos A4".</summary>
+    public Task<ProcedureResult> ApplyAsync(
+        ProcedureContext context, string updatedConfig, string what, string printer, CancellationToken cancellationToken) =>
+        ApplyAsync(context, () => platform.TSPrintConfig.WritePrinterConfig(updatedConfig),
+            $"TSPrint: {what} agora vão para {printer}", cancellationToken);
+
+    /// <param name="write">Grava a configuração (com o TSPrint fechado).</param>
+    /// <param name="done">Mensagem de sucesso, sem ponto final.</param>
     public async Task<ProcedureResult> ApplyAsync(
-        ProcedureContext context, string updatedConfig, string what, string printer, CancellationToken cancellationToken)
+        ProcedureContext context, Action write, string done, CancellationToken cancellationToken)
     {
         var running = platform.Processes.FindInCurrentSession(PrintingConstants.TSPrintProcessName);
         foreach (var process in running)
         {
             if (!platform.Processes.Close(process.Id, PrintingConstants.TSPrintCloseTimeout))
                 return ProcedureResult.Fail(
-                    $"Não foi possível fechar o TSPrint para trocar a impressora d{what[1..]}. Feche o TSPrint e tente de novo.");
+                    "Não foi possível fechar o TSPrint para alterar a configuração. Feche o TSPrint e tente de novo.");
         }
         if (running.Count > 0)
             context.Log("TSPrint: fechado para gravar a configuração.");
 
         try
         {
-            platform.TSPrintConfig.WritePrinterConfig(updatedConfig);
+            write();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -41,14 +48,14 @@ internal sealed class TSPrintPrinterSwitch(PlatformServices platform, string? ex
         if (running.Count == 0)
         {
             context.State.Set(PrintingState.TSPrintRunning, false);
-            return ProcedureResult.Ok($"TSPrint: {what} agora vão para {printer}.");
+            return ProcedureResult.Ok($"{done}.");
         }
 
         var reopened = await ReopenAsync(cancellationToken);
         context.State.Set(PrintingState.TSPrintRunning, reopened);
         return reopened
-            ? ProcedureResult.Ok($"TSPrint: {what} agora vão para {printer}. TSPrint reaberto.")
-            : ProcedureResult.Fail($"TSPrint: {what} agora vão para {printer}, mas o TSPrint não reabriu. Abra o TSPrint manualmente.");
+            ? ProcedureResult.Ok($"{done}. TSPrint reaberto.")
+            : ProcedureResult.Fail($"{done}, mas o TSPrint não reabriu. Abra o TSPrint manualmente.");
     }
 
     private async Task<bool> ReopenAsync(CancellationToken cancellationToken)

@@ -49,9 +49,12 @@ jobs:
         shell: pwsh
         env:
           CHAVE_PUBLICA: ${{ steps.chave.outputs.publica }}
+          WPST_TSPRINT_TOKEN: ${{ secrets.WPST_TSPRINT_TOKEN }}
         run: |
           $argumentos = @('publish', 'src/WPSupportTools.App', '-p:PublishProfile=win-x64', '-p:DebugType=none')
           if ($env:CHAVE_PUBLICA) { $argumentos += "-p:UpdatePublicKey=$env:CHAVE_PUBLICA" }
+          if ($env:WPST_TSPRINT_TOKEN) { $argumentos += "-p:TSPrintToken=$env:WPST_TSPRINT_TOKEN" }
+          else { Write-Host "::warning::Segredo WPST_TSPRINT_TOKEN não configurado: esta versão não preenche a senha do TSPrint." }
           dotnet @argumentos
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

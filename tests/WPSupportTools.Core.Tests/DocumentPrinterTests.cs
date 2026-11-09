@@ -141,7 +141,7 @@ public sealed class DocumentPrinterTests : IDisposable
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
         Assert.Equal(T830, TSPrintFolderPrinter.PrinterOf(_fake.TSPrintPrinterConfig, PrintingConstants.TSPrintDocumentFolders));
         Assert.Equal(Config.Replace("\"PRINTERNAME\":\"Brother DCP-T820DW\"", $"\"PRINTERNAME\":\"{T830}\""), _fake.TSPrintPrinterConfig);
-        Assert.Contains("documentos A4 agora vão para", report.Results[7].Message);
+        Assert.Contains("documentos A4 agora vão para", report.Results[8].Message);
         Assert.Single(_fake.Processes.Closed);
         Assert.True(_fake.Processes.TSPrintRunning);
     }
@@ -156,7 +156,7 @@ public sealed class DocumentPrinterTests : IDisposable
         var report = await RunFixAsync();
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Equal(7, report.FailedStepIndex);
+        Assert.Equal(8, report.FailedStepIndex);
         Assert.Equal(0, _fake.TSPrintConfigWrites);
         Assert.Empty(_fake.Processes.Closed);
     }

@@ -42,6 +42,26 @@ se atualizar sozinhas.
 
 > Nunca cole essa chave em chat, e-mail ou arquivo do repositório. O repositório é público.
 
+## 1b. Senha do servidor do TSPrint (uma vez só)
+
+O app configura sozinho o TSPrint que estiver desconfigurado, inclusive a senha do servidor. A senha fica num
+segredo do GitHub (`WPST_TSPRINT_TOKEN`) e entra no `.exe` só na compilação do GitHub, nunca no código.
+
+1. Num PC com o TSPrint **já configurado e funcionando** (servidor Compartilhado, senha da WP), abra o
+   **Windows PowerShell** e cole (a senha não aparece na tela; é enviada direto ao GitHub):
+
+   ```powershell
+   $g = (Get-Content 'C:\Rede_Unilab\TSPrint\conf\geral_cnf.data' -Raw -Encoding UTF8).TrimStart([char]0xFEFF) | ConvertFrom-Json
+   gh secret set WPST_TSPRINT_TOKEN --repo Leozin7xs/Leozin7xs --body $g.token
+   ```
+
+   Sem o GitHub CLI (`gh`): rode só a 1ª linha e depois `Set-Clipboard -Value $g.token`, e cole em
+   Settings → Secrets and variables → Actions → New repository secret, nome `WPST_TSPRINT_TOKEN`.
+2. Gere a versão de novo: aba **Actions** → **Gerar WPSupportTools.exe** → **Run workflow**.
+
+> O `.exe` é público: quem o extrair consegue a senha (decisão da WP). Se a senha do servidor mudar,
+> repita o passo 1 com um PC já atualizado e gere a versão de novo.
+
 ## 2. Instalar num computador (técnico, uma vez por PC)
 
 1. Baixe o `.exe` de teste aprovado: https://github.com/Leozin7xs/Leozin7xs/releases/latest

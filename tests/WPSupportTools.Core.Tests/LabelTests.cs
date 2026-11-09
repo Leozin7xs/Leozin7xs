@@ -238,7 +238,7 @@ public sealed class LabelTests : IDisposable
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
         Assert.Equal(Zd230, TSPrintLabelPrinter.From(_fake.TSPrintPrinterConfig));
-        Assert.Contains("agora vão para", report.Results[8].Message);
+        Assert.Contains("agora vão para", report.Results[9].Message);
         Assert.Single(_fake.Processes.Closed);
         Assert.Equal([TSPrintExe], _fake.Processes.Started);
         Assert.True(_fake.Processes.TSPrintRunning);
@@ -254,7 +254,7 @@ public sealed class LabelTests : IDisposable
         var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
-        Assert.Contains("já imprime", report.Results[8].Message);
+        Assert.Contains("já imprime", report.Results[9].Message);
         Assert.Equal(0, _fake.TSPrintConfigWrites);
         Assert.Empty(_fake.Processes.Closed);
         Assert.Empty(_fake.Processes.Started);
@@ -295,8 +295,8 @@ public sealed class LabelTests : IDisposable
         var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Equal(8, report.FailedStepIndex);
-        Assert.Contains("Feche o TSPrint", report.Results[8].Message);
+        Assert.Equal(9, report.FailedStepIndex);
+        Assert.Contains("Feche o TSPrint", report.Results[9].Message);
         Assert.Equal(0, _fake.TSPrintConfigWrites);
         Assert.Empty(_fake.Raw.Sent);
     }
@@ -310,22 +310,24 @@ public sealed class LabelTests : IDisposable
         var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Contains("Nada foi alterado", report.Results[8].Message);
+        Assert.Contains("Nada foi alterado", report.Results[9].Message);
         Assert.Equal(TSPrintConfig, _fake.TSPrintPrinterConfig);
         Assert.True(_fake.Processes.TSPrintRunning);
     }
 
     [Fact]
-    public async Task Tsprint_without_label_folder_asks_for_support()
+    public async Task Tsprint_without_label_folder_gets_the_etiq_folder_created()
     {
         TSPrintPointsToARemovedPrinter();
-        _fake.TSPrintPrinterConfig = "[{\"ID\":1,\"FOLDER\":\"root\",\"PRINTERNAME\":\"SEC30CDA7FFC122\"}]";
+        _fake.TSPrintPrinterConfig = "[{\"ID\":1,\"FOLDER\":\"root\",\"PRINTERNAME\":\"SEC30CDA7FFC122\",\"DOWNLOAD\":\"Sim\",\"PRINT\":\"Sim\"}]";
 
         var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
 
-        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Contains("\"etiq\"", report.Results[8].Message);
-        Assert.Empty(_fake.Processes.Closed);
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(
+            "[{\"ID\":1,\"FOLDER\":\"root\",\"PRINTERNAME\":\"SEC30CDA7FFC122\",\"DOWNLOAD\":\"Sim\",\"PRINT\":\"Sim\"}," +
+            $"{{\"ID\":2,\"FOLDER\":\"etiq\",\"PRINTERNAME\":\"{Zd230}\",\"DOWNLOAD\":\"Sim\",\"PRINT\":\"Sim\"}}]",
+            _fake.TSPrintPrinterConfig);
     }
 
     // ---------- DEVMODE ----------

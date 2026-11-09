@@ -52,6 +52,21 @@ public static class DocumentPrinterSelector
         };
     }
 
+    /// <summary>O TSPrint não tem impressora A4: usa a única impressora física funcionando, se houver só uma.</summary>
+    public static Choice SelectForEmptyTSPrint(IReadOnlyList<InstalledPrinter> printers)
+    {
+        var working = printers.Where(p => IsPhysicalDocumentPrinter(p) && !p.IsOffline && p.Problem is null).ToList();
+        return working.Count switch
+        {
+            1 => new Choice(working[0], $"O TSPrint está sem impressora A4; usando '{working[0].Name}', a que está funcionando."),
+            0 => new Choice(null,
+                "O TSPrint está sem impressora A4 e nenhuma impressora está funcionando. Confira se a impressora está ligada e conectada."),
+            _ => new Choice(null,
+                $"O TSPrint está sem impressora A4 e há mais de uma funcionando ({string.Join(", ", working.Select(p => $"'{p.Name}'"))}). " +
+                "Chame o suporte para escolher a certa.", Ambiguous: true),
+        };
+    }
+
     private static bool SameName(InstalledPrinter p, string name) =>
         string.Equals(p.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase);
 }

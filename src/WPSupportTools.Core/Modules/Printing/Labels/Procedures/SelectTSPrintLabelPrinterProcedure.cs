@@ -37,16 +37,26 @@ public sealed class SelectTSPrintLabelPrinterProcedure(PlatformServices platform
         }
 
         if (config is null)
-            return ProcedureResult.NotNeeded("TSPrint não encontrado neste computador.");
+        {
+            // Sem arquivo de impressoras mas com o TSPrint configurado: começa uma lista vazia.
+            if (platform.TSPrintConfig.ReadGeneralConfig() is null)
+                return ProcedureResult.NotNeeded("TSPrint não encontrado neste computador.");
+            config = "[]";
+        }
 
         var current = TSPrintLabelPrinter.From(config);
         if (current is not null && string.Equals(current, printer.Trim(), StringComparison.OrdinalIgnoreCase))
             return ProcedureResult.Ok($"O TSPrint já imprime as etiquetas na {printer}.");
 
         var updated = TSPrintLabelPrinter.WithPrinter(config, printer);
+        if (updated is null && !TSPrintFolderPrinter.HasFolder(config, PrintingConstants.TSPrintLabelFolders))
+        {
+            context.Log("TSPrint: sem pasta de etiquetas; criando a pasta \"etiq\".");
+            updated = TSPrintFolderPrinter.WithFolderAdded(config, PrintingConstants.TSPrintLabelFolders[0], printer);
+        }
         if (updated is null)
             return ProcedureResult.Fail(
-                "O TSPrint não tem a pasta de etiquetas (\"etiq\") configurada. Chame o suporte para configurar o TSPrint.");
+                "A configuração de impressoras do TSPrint não está num formato reconhecido. Chame o suporte.");
 
         context.Log($"TSPrint: etiquetas iam para '{current ?? "(nenhuma)"}'; trocando para '{printer}'.");
         return await new TSPrintPrinterSwitch(platform, executablePath)

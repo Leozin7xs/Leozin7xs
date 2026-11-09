@@ -28,7 +28,7 @@ public sealed class PrintingFlowTests : IDisposable
     private static ProcedureOutcome[] Outcomes(SequenceReport report) => report.Results.Select(r => r.Outcome).ToArray();
 
     // Índices: 0 verificar fila, 1 cancelar, 2 parar, 3 limpar arquivos, 4 iniciar, 5 cancelar restantes,
-    //          6 conferir, 7 impressora A4 no TSPrint, 8 verificar TSPrint, 9 abrir TSPrint.
+    //          6 conferir, 7 conexão do TSPrint, 8 impressora A4 no TSPrint, 9 verificar TSPrint, 10 abrir TSPrint.
 
     [Fact]
     public async Task Stuck_queue_cancels_jobs_and_restarts_spooler_with_a_single_elevation()
@@ -46,7 +46,7 @@ public sealed class PrintingFlowTests : IDisposable
         Assert.Equal(
             [ProcedureOutcome.Success, ProcedureOutcome.Success, ProcedureOutcome.Success, ProcedureOutcome.Success,
              ProcedureOutcome.Success, ProcedureOutcome.Success, ProcedureOutcome.Success,
-             ProcedureOutcome.NotNeeded, ProcedureOutcome.NotNeeded, ProcedureOutcome.NotNeeded],
+             ProcedureOutcome.NotNeeded, ProcedureOutcome.NotNeeded, ProcedureOutcome.NotNeeded, ProcedureOutcome.NotNeeded],
             Outcomes(report));
     }
 
@@ -62,7 +62,7 @@ public sealed class PrintingFlowTests : IDisposable
         Assert.Empty(_fake.Services.Calls);
         Assert.Empty(_fake.Queue.Cancelled);
         Assert.Empty(_fake.Processes.Started);
-        Assert.Equal(ProcedureOutcome.NotNeeded, report.Results[9].Outcome);
+        Assert.Equal(ProcedureOutcome.NotNeeded, report.Results[10].Outcome);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class PrintingFlowTests : IDisposable
 
         Assert.Empty(_elevated.Requests);
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
-        Assert.Equal(ProcedureOutcome.Success, report.Results[9].Outcome);
+        Assert.Equal(ProcedureOutcome.Success, report.Results[10].Outcome);
         Assert.Equal([@"C:\Rede_Unilab\TSPrint\TSPrint.exe"], _fake.Processes.Started);
     }
 

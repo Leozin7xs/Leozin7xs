@@ -42,6 +42,15 @@ internal sealed class FakePlatform : IDisposable
         new(Services, Queue, Processes, () => Now, new FakeCatalog(this), Preferences, Raw, new FakeSpool(this),
             new FakeTSPrintConfig(this));
 
+    /// <summary>Conteúdo do geral_cnf.data do TSPrint (null = não existe).</summary>
+    public string? TSPrintGeneralConfig { get; set; }
+
+    /// <summary>Quantas vezes o arquivo geral do TSPrint foi gravado.</summary>
+    public int TSPrintGeneralWrites { get; private set; }
+
+    /// <summary>Usuário encontrado no Unilab do PC (sem "@"), ou null.</summary>
+    public string? UnilabUser { get; set; }
+
     /// <summary>Quantas vezes o arquivo de impressoras do TSPrint foi gravado.</summary>
     public int TSPrintConfigWrites { get; private set; }
 
@@ -62,6 +71,20 @@ internal sealed class FakePlatform : IDisposable
             owner.TSPrintConfigWrites++;
             owner.TSPrintPrinterConfig = content;
         }
+
+        public string? ReadGeneralConfig() => owner.TSPrintGeneralConfig;
+
+        public void WriteGeneralConfig(string content)
+        {
+            if (owner.TSPrintConfigReadOnly)
+                throw new UnauthorizedAccessException("Acesso negado.");
+            if (owner.Processes.TSPrintRunning)
+                throw new InvalidOperationException("Gravou com o TSPrint aberto.");
+            owner.TSPrintGeneralWrites++;
+            owner.TSPrintGeneralConfig = content;
+        }
+
+        public string? ReadUnilabUser() => owner.UnilabUser;
     }
 
     /// <summary>Cria um documento na pasta da fila (.SHD com o nome da impressora + .SPL).</summary>

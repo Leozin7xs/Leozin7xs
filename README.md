@@ -4,9 +4,9 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.4):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
-> O app confere e, quando dá para ter certeza, troca no TSPrint a impressora A4 (pasta `root`) e a
-> etiquetadora (pasta `etiq`).
+> **Status atual (v0.6.5):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> O app configura a conexão do TSPrint com o servidor da WP quando ela está fora do padrão e confere/troca
+> no TSPrint a impressora A4 (pasta `root`) e a etiquetadora (pasta `etiq`), criando as pastas que faltarem.
 
 ---
 
@@ -69,9 +69,22 @@ Procedimento manual da WP, definido em
 | 5 | Iniciando serviço de impressão | `printing.start-spooler` | fila travada (**sempre**, se o spooler foi parado) | sim |
 | 6 | Cancelando documentos restantes | `printing.cancel-remaining-jobs` | fila travada | sim |
 | 7 | Conferindo se a fila destravou | `printing.recheck-queue` | fila travada | não |
-| 8 | Conferindo a impressora A4 no TSPrint | `printing.tsprint-printer` | sempre | não |
-| 9 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
-| 10 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
+| 8 | Conferindo a conexão do TSPrint | `printing.tsprint-server` | sempre | não |
+| 9 | Conferindo a impressora A4 no TSPrint | `printing.tsprint-printer` | sempre | não |
+| 10 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
+| 11 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
+
+**Conexão do TSPrint (padrão WP, igual em todas as unidades):** servidor **Compartilhado**, 20 processos,
+intervalo 2 s, URL `http://imp.unilab.app.br/tsprint`, código ADM `01451`, porta 3080 (`TSPrintServerSettings`).
+- **Usuário RDP:** mantém o que já está no TSPrint; se estiver vazio ou no padrão de fábrica (`00000Cent00`),
+  usa a linha `Usuario=` (sem o "@") do `.ini`/`.txt` da pasta do disco C: com "unilab" no nome
+  (ex.: `C:\Rede_Unilab\Unilab.ini`, seção `[CLOUD]`).
+- **Senha:** o TSPrint guarda criptografada (campo `token`). Se o TSPrint estiver sem senha, o app usa a que
+  vem do build no GitHub (segredo `WPST_TSPRINT_TOKEN`); compilações locais saem sem ela. Nunca vai para o log.
+- Se tudo já está no padrão, nada muda. Se algo muda, o TSPrint é fechado, o arquivo geral é gravado
+  (cópia do anterior em `%LOCALAPPDATA%\WPSupportTools\Backups`) e o TSPrint é reaberto.
+- Depois de reconfigurar, o TSPrint pode ficar sem impressoras: as etapas seguintes criam as pastas `root`
+  (A4), `pdf` (Microsoft Print to PDF, só baixa) e `etiq` (Zebra), seguindo os campos das pastas existentes.
 
 **Impressora A4 no TSPrint:** só impressoras físicas contam (PDF, XPS, OneNote, fax e Zebras ficam de fora).
 - A do TSPrint está funcionando → nada muda.
@@ -106,11 +119,10 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado ou 
   a correção falha e orienta chamar o técnico (spooler ligado).
 - **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo
   `C:\Rede_Unilab\TSPrint\TSPrint.exe` (`PrintingConstants.TSPrintExecutablePath`). Da configuração do TSPrint,
-  só é usado o arquivo de impressoras `C:\Rede_Unilab\TSPrint\conf\print_doc_cnf.data`; o arquivo geral, com
-  usuário e senha, nunca é lido. A única alteração possível é o nome da impressora da pasta de etiquetas
-  (`etiq`/`etiqueta`), e só quando ela não aponta para a Zebra localizada: o TSPrint é fechado, o nome é trocado
-  (o resto do arquivo fica idêntico; cópia do anterior em `%LOCALAPPDATA%\WPSupportTools\Backups`) e o TSPrint
-  é reaberto.
+  usa o arquivo de impressoras (`conf\print_doc_cnf.data`) e o arquivo geral (`conf\geral_cnf.data`, conexão
+  com o servidor). Só altera o que está fora do padrão WP (ver acima); o TSPrint é fechado antes e reaberto
+  depois, e uma cópia do arquivo anterior fica em `%LOCALAPPDATA%\WPSupportTools\Backups`. A senha do servidor
+  nunca é registrada no log.
 
 ### Regras de execução
 
