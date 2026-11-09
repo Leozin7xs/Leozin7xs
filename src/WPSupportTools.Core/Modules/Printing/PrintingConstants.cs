@@ -25,6 +25,9 @@ public static class PrintingConstants
     /// <summary>Nomes da pasta do TSPrint cujas impressões são etiquetas ("FOLDER" em print_doc_cnf.data).</summary>
     public static readonly IReadOnlyList<string> TSPrintLabelFolders = ["etiq", "etiqueta", "etiquetas"];
 
+    /// <summary>Pasta do TSPrint dos documentos comuns (impressora A4) em print_doc_cnf.data.</summary>
+    public static readonly IReadOnlyList<string> TSPrintDocumentFolders = ["root"];
+
     /// <summary>Tempo máximo esperando o TSPrint fechar antes de gravar a configuração.</summary>
     public static readonly TimeSpan TSPrintCloseTimeout = TimeSpan.FromSeconds(10);
 

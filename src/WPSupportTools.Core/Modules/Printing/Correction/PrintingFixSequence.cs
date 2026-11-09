@@ -11,7 +11,9 @@ namespace WPSupportTools.Core.Modules.Printing.Correction;
 ///    Se SIM: cancelar os documentos da fila travada, parar o spooler (net stop spooler), apagar os
 ///            arquivos da fila, iniciar o spooler (net start spooler), cancelar o que voltar e
 ///            conferir se a fila ficou vazia.
-///    Se NÃO: ver se o TSPrint está aberto; se não estiver, abrir.
+///    Sempre: conferir se a impressora A4 do TSPrint (pasta "root") existe e está funcionando; se não,
+///            e houver exatamente uma outra funcionando, trocar no TSPrint.
+///    Se NÃO estava travada: ver se o TSPrint está aberto; se não estiver, abrir.
 /// </code>
 /// Para mudar a ordem, adicionar ou remover etapas, altere apenas a lista abaixo.
 /// </summary>
@@ -34,6 +36,9 @@ public static class PrintingFixSequence
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), OnlyIfQueueStuck),
             new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), OnlyIfQueueStuck),
+
+            // Sempre: o TSPrint imprime os documentos A4 numa impressora que está funcionando?
+            new SelectTSPrintDocumentPrinterProcedure(platform),
 
             // Fila normal
             new ConditionalProcedure(new CheckTSPrintProcedure(platform), OnlyIfQueueNormal),

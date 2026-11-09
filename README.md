@@ -4,8 +4,9 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.3):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
-> A etiquetadora passa a ser selecionada no TSPrint automaticamente (pasta `etiq`).
+> **Status atual (v0.6.4):** procedimento de impressão da WP implementado (fila + spooler + TSPrint).
+> O app confere e, quando dá para ter certeza, troca no TSPrint a impressora A4 (pasta `root`) e a
+> etiquetadora (pasta `etiq`).
 
 ---
 
@@ -54,7 +55,9 @@ Procedimento manual da WP, definido em
 ```
 1. Ver se a fila de impressão está travada (documento com erro).
    Se SIM → cancelar os documentos da impressora travada, net stop / net start spooler, conferir se destravou.
-   Se NÃO → ver se o TSPrint está aberto; se não estiver, abrir.
+   Sempre → a impressora A4 do TSPrint (pasta "root") existe e está funcionando? Se não, e houver
+            exatamente uma outra funcionando, trocar no TSPrint.
+   Se NÃO estava travada → ver se o TSPrint está aberto; se não estiver, abrir.
 ```
 
 | # | Etapa | ID (log) | Quando roda | Admin |
@@ -66,8 +69,18 @@ Procedimento manual da WP, definido em
 | 5 | Iniciando serviço de impressão | `printing.start-spooler` | fila travada (**sempre**, se o spooler foi parado) | sim |
 | 6 | Cancelando documentos restantes | `printing.cancel-remaining-jobs` | fila travada | sim |
 | 7 | Conferindo se a fila destravou | `printing.recheck-queue` | fila travada | não |
-| 8 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
-| 9 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
+| 8 | Conferindo a impressora A4 no TSPrint | `printing.tsprint-printer` | sempre | não |
+| 9 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
+| 10 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
+
+**Impressora A4 no TSPrint:** só impressoras físicas contam (PDF, XPS, OneNote, fax e Zebras ficam de fora).
+- A do TSPrint está funcionando → nada muda.
+- Está instalada mas precisa de atenção (sem papel, sem tinta/toner, tampa aberta, papel atolado) → avisa e
+  não troca: trocar de impressora não resolve.
+- Não está instalada ou está desligada/sem comunicação → troca, mas só se houver **exatamente uma** outra
+  funcionando. Nenhuma ou mais de uma → avisa e pede o suporte, sem mexer no TSPrint.
+
+Diagnóstico somente leitura para um PC com problema: `tools/diagnostico-impressoras.ps1`.
 
 Etapas que não se aplicam aparecem como "não necessária". O aviso do UAC só aparece quando a fila
 está travada, uma única vez para as etapas 2–6. O processo de administrador recebe a lista das impressoras

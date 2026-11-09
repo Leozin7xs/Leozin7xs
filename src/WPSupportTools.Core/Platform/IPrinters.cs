@@ -1,7 +1,9 @@
 namespace WPSupportTools.Core.Platform;
 
 /// <summary>Impressora instalada no Windows (somente o necessário para identificá-la).</summary>
-public sealed record InstalledPrinter(string Name, string DriverName, string PortName, bool IsOffline, bool IsDefault);
+/// <param name="Problem">O que o Windows diz que precisa de atenção na impressora (ex.: "sem papel"), ou null.</param>
+public sealed record InstalledPrinter(
+    string Name, string DriverName, string PortName, bool IsOffline, bool IsDefault, string? Problem = null);
 
 /// <summary>Impressoras instaladas (somente leitura).</summary>
 public interface IPrinterCatalog
