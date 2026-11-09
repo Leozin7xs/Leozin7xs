@@ -93,8 +93,7 @@ public sealed class ConfigureTSPrintServerProcedure(PlatformServices platform, s
         if (UnilabCloud.LicenseOf(current) is not { } license)
             return ProcedureResult.Fail("O UniLab novo deste PC está sem licença. Use o botão \"Instalar o UniLab\" para preencher.");
 
-        var legacyToken = TSPrintServerSettingsToken(platform) ?? token;
-        var password = UnilabCloud.HasPassword(current) ? null : UnilabCloud.Password(license, legacyToken);
+        var password = UnilabCloud.PasswordToWrite(license, current, token, TSPrintServerSettingsToken(platform));
         var result = UnilabCloud.Apply(current, license, password, []);
         if (result is null)
             return ProcedureResult.Fail("A configuração do UniLab não está num formato reconhecido. Chame o suporte.");

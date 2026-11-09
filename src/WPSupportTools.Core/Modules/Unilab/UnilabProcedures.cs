@@ -206,25 +206,25 @@ public sealed class ConfigureUnilabProcedure(PlatformServices platform, string? 
         var legacyA4 = TSPrintFolderPrinter.PrinterOf(legacyPrinters, PrintingConstants.TSPrintDocumentFolders);
         var a4 = legacyA4 is not null ? DocumentPrinterSelector.Select(printers, legacyA4) : null;
         var a4Name = a4 is { AlreadyWorking: true } ? legacyA4 : (a4?.SwitchTo ?? DocumentPrinterSelector.SelectForEmptyTSPrint(printers).SwitchTo)?.Name;
-        if (a4Name is not null)
-            rules.Add(new("root", a4Name, Print: true));
-        else
-            notes.Add("impressora A4 não definida (nenhuma ou mais de uma funcionando)");
+        // As pastas root (A4) e etiq sempre existem; a impressora só entra se for encontrada.
+        rules.Add(new("root", a4Name, Print: true));
+        if (a4Name is null)
+            notes.Add("impressora A4 não encontrada (nenhuma ou mais de uma funcionando); pasta root criada sem impressora");
 
         if (printers.FirstOrDefault(p => p.Name.Equals(PdfPrinter, StringComparison.OrdinalIgnoreCase)) is { } pdf)
             rules.Add(new("pdf", pdf.Name, Print: false));
 
         var zebra = LabelPrinterSelector.Select(printers, TSPrintLabelPrinter.From(legacyPrinters));
-        if (zebra.Printer is not null)
-            rules.Add(new("etiq", zebra.Printer.Name, Print: true));
-        else if (printers.Any(p => ZebraModel.LanguageOf(p.DriverName) is not null))
-            notes.Add("etiquetadora não definida (" + zebra.Message.TrimEnd('.') + ")");
+        rules.Add(new("etiq", zebra.Printer?.Name, Print: true));
+        if (zebra.Printer is null)
+            notes.Add(printers.Any(p => ZebraModel.LanguageOf(p.DriverName) is not null)
+                ? "etiquetadora não definida (" + zebra.Message.TrimEnd('.') + "); pasta etiq criada sem impressora"
+                : "etiquetadora não encontrada; pasta etiq criada sem impressora");
 
-        // Senha do servidor: a do TSPrint antigo deste PC ou a da WP (build); sem elas, o padrão da Uniware.
-        var legacyToken = TokenOf(SafeRead(platform.TSPrintConfig.ReadGeneralConfig)) ?? buildToken;
-        var password = UnilabCloud.Password(license, legacyToken);
-
+        // Senha do servidor: sempre a da WP (build); sem ela, a do TSPrint antigo ou o padrão da Uniware.
         var current = SafeRead(platform.Unilab.ReadCloudConfig);
+        var password = UnilabCloud.PasswordToWrite(license, current, buildToken,
+            TokenOf(SafeRead(platform.TSPrintConfig.ReadGeneralConfig)));
         var result = UnilabCloud.Apply(current, license, password, rules);
         if (result is null)
             return ProcedureResult.Fail("A configuração do UniLab não está num formato reconhecido. Chame o suporte.");
@@ -247,7 +247,9 @@ public sealed class ConfigureUnilabProcedure(PlatformServices platform, string? 
 
         context.Log($"UniLab: {(result.Changes.Count == 0 ? "configuração já estava certa" : "ajustado: " + string.Join(", ", result.Changes))}.");
         var summary = $"Licença {license} preenchida e TSPrint do UniLab ligado" +
-                      (rules.Count > 0 ? $" ({string.Join("; ", rules.Select(r => $"{r.Folder}: {r.PrinterName}"))})" : "");
+                      (rules.Any(r => r.PrinterName is not null)
+                          ? $" ({string.Join("; ", rules.Where(r => r.PrinterName is not null).Select(r => $"{r.Folder}: {r.PrinterName}"))})"
+                          : "");
         return ProcedureResult.Ok(notes.Count == 0
             ? summary + "."
             : summary + $". Atenção: {string.Join("; ", notes)} — ajuste na aba TSPrint do UniLab.");

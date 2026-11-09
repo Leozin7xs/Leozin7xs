@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.6):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> **Status atual (v0.6.7):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
 > (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
 > conferem o TSPrint dele em vez do TSPrint antigo.
 
@@ -152,11 +152,18 @@ A atendente informa a **licença** (ex.: `@01451exemplo01`, o usuário do UniLab
   dados internos UNIWARE / Unilab na versão do nome do arquivo. Baixar, conferir e instalar acontecem dentro do
   processo de administrador, numa pasta protegida em ProgramData; o lado do usuário só informa o nome oficial do
   arquivo e a versão. Instalação silenciosa (`/S`), para todos os usuários, em `C:\Rede_Unilab\Unilab`.
-- **Licença e TSPrint embutido** (`C:\rede_unilab\dados\Unilab\data\config.json`): `user` = licença;
-  TSPrint ligado com servidor `http://imp.unilab.app.br:3080/tsprint`, código ADM (5 primeiros dígitos),
-  usuário RDP (licença sem @) e senha (a do TSPrint antigo do PC ou a da WP; sem elas, código ADM + "aaa").
+- **Licença e TSPrint embutido** (`C:\rede_unilab\dados\Unilab\data\config.json`): `user` = licença e
+  "Iniciar maximizado" marcado; TSPrint ligado com servidor `http://imp.unilab.app.br:3080/tsprint`, código ADM
+  (5 primeiros dígitos), usuário RDP (licença sem @) e senha. A senha é **sempre a da WP** (segredo
+  `WPST_TSPRINT_TOKEN`), mesmo que já exista outra: a do TSPrint antigo pode estar desatualizada e o servidor
+  recusa (401 "Autenticação de cliente inválida"). Só nas compilações sem o segredo o app usa a do TSPrint antigo
+  (ou código ADM + "aaa"), e apenas se o campo estiver vazio.
   Pastas: `root` (A4: a do TSPrint antigo, se funcionando, senão a única funcionando), `pdf` (Print to PDF, só
-  baixa) e `etiq` (Zebra). O UniLab é fechado antes de gravar.
+  baixa) e `etiq` (Zebra; baixar e imprimir, sem girar, tamanho real). As pastas `root` e `etiq` são sempre
+  criadas; sem impressora encontrada, ficam sem impressora e com baixar/imprimir em "Não" (com "Sim" e sem
+  impressora o UniLab imprimiria na impressora padrão do Windows), e as impressões esperam no servidor. Quando a
+  impressora aparece, os botões de impressora a conectam e ligam baixar/imprimir. O UniLab é fechado antes de gravar e,
+  ao abrir, liga o TSPrint sozinho (botão da impressora verde).
 - **TSPrint antigo:** os dois puxariam as mesmas impressões, então o antigo é fechado, sai da inicialização do
   Windows e o atalho do UniLab antigo sai da área de trabalho (atalhos guardados em
   `%LOCALAPPDATA%\WPSupportTools\Backups`).

@@ -52,6 +52,21 @@ public sealed class UnilabTests : IDisposable
         Assert.Equal("01451aaa", UnilabCloud.Password(License, "zz"));
     }
 
+    [Fact]
+    public void Wp_password_always_replaces_a_wrong_one_and_without_it_the_current_is_kept()
+    {
+        var wp = Convert.ToHexString(Encoding.UTF8.GetBytes("SenhaWP1"));
+        const string withOldPassword = """{"user":"@01451exemplo01","tsprint":{"password":"antiga"}}""";
+        const string withoutPassword = """{"user":"@01451exemplo01","tsprint":{"password":""}}""";
+
+        // Senha da WP (build): sempre vence, mesmo com outra já gravada (o servidor recusava a antiga: 401).
+        Assert.Equal("SenhaWP1", UnilabCloud.PasswordToWrite(License, withOldPassword, wp, Hex));
+        // Sem a da WP (compilação local): mantém a atual; se estiver vazia, usa a do TSPrint antigo ou o padrão.
+        Assert.Null(UnilabCloud.PasswordToWrite(License, withOldPassword, null, Hex));
+        Assert.Equal("S3nh4WPx", UnilabCloud.PasswordToWrite(License, withoutPassword, null, Hex));
+        Assert.Equal("01451aaa", UnilabCloud.PasswordToWrite(License, null, null, null));
+    }
+
     // ---------- Página e instalador ----------
 
     [Fact]
@@ -111,6 +126,7 @@ public sealed class UnilabTests : IDisposable
         var config = JsonNode.Parse(result.Json)!;
 
         Assert.Equal(License, (string?)config["user"]);
+        Assert.True((bool)config["startMaximized"]!);                            // "Iniciar maximizado" sempre marcado
         Assert.Equal("unilab", (string?)config["tabs"]![0]!["id"]);              // campo do app preservado
         Assert.True((bool)config["tsprint"]!["enabled"]!);
         Assert.Equal("01451", (string?)config["tsprint"]!["codAdm"]);
@@ -121,6 +137,44 @@ public sealed class UnilabTests : IDisposable
         Assert.Contains("\n  \"user\"", result.Json);                             // mesmo recuo do UniLab
         Assert.Empty(UnilabCloud.Apply(result.Json, License, "S3nh4WPx",
             [new("root", Brother, true), new("etiq", Zd230, true)])!.Changes);
+    }
+
+    [Fact]
+    public void Folders_without_printer_are_created_paused_and_existing_ones_are_kept()
+    {
+        var result = UnilabCloud.Apply(null, License, "S3nh4WPx", [new("root", null, true), new("etiq", null, true)])!;
+        var rules = JsonNode.Parse(result.Json)!["tsprint"]!["pdfRules"]!.AsArray();
+
+        foreach (var folder in new[] { "root", "etiq" })
+        {
+            var rule = rules.Single(r => (string?)r!["folder"] == folder)!;
+            Assert.Equal("", (string?)rule["printerName"]);
+            Assert.False((bool)rule["download"]!);     // sem impressora não baixa nem imprime:
+            Assert.False((bool)rule["print"]!);        // iria para a impressora padrão do Windows
+        }
+        Assert.Contains("pasta etiq criada (sem impressora)", result.Changes);
+
+        // Pasta já configurada não perde a impressora quando nenhuma é encontrada...
+        var configured = UnilabCloud.Apply(result.Json, License, "S3nh4WPx", [new("etiq", Zd230, true)])!;
+        Assert.Empty(UnilabCloud.Apply(configured.Json, License, "S3nh4WPx", [new("etiq", null, true)])!.Changes);
+        // ...e, quando a impressora aparece, é conectada e passa a baixar e imprimir.
+        var etiq = JsonNode.Parse(configured.Json)!["tsprint"]!["pdfRules"]!.AsArray().Single(r => (string?)r!["folder"] == "etiq")!;
+        Assert.Equal(Zd230, (string?)etiq["printerName"]);
+        Assert.True((bool)etiq["download"]! && (bool)etiq["print"]!);
+    }
+
+    [Fact]
+    public async Task Pc_without_a4_or_label_printer_gets_the_folders_without_printers()
+    {
+        _fake.TSPrintGeneralConfig = $$"""{"servidor":1,"token":"{{Hex}}"}""";
+
+        var report = await InstallAsync();
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        var rules = JsonNode.Parse(_fake.Unilab.CloudConfig!)!["tsprint"]!["pdfRules"]!.AsArray();
+        Assert.Equal(["root", "etiq"], rules.Select(r => (string)r!["folder"]!));
+        Assert.All(rules, r => Assert.Equal("", (string?)r!["printerName"]));
+        Assert.Contains(report.Results, r => r.Message.Contains("pasta etiq criada sem impressora"));
     }
 
     // ---------- Fluxo "Instalar o UniLab" ----------

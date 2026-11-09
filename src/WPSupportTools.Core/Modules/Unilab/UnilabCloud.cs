@@ -61,11 +61,28 @@ public static partial class UnilabCloud
         return AdminCode(license) + "aaa";
     }
 
+    /// <summary>
+    /// Senha a gravar no TSPrint embutido, ou null para manter a atual.
+    /// A senha da WP (do build, igual em todas as unidades) sempre vence: o servidor recusa (401) a do
+    /// TSPrint antigo quando ela ficou desatualizada. Sem ela (compilação local), só preenche se estiver vazia,
+    /// com a do TSPrint antigo ou o padrão da Uniware.
+    /// </summary>
+    public static string? PasswordToWrite(string license, string? current, string? buildToken, string? legacyToken)
+    {
+        if (!string.IsNullOrWhiteSpace(buildToken))
+            return Password(license, buildToken);
+        return HasPassword(current) ? null : Password(license, legacyToken);
+    }
+
     [GeneratedRegex("^[0-9A-Fa-f]+$")]
     private static partial Regex HexPattern();
 
-    /// <summary>Regra de impressão de uma pasta do TSPrint embutido.</summary>
-    public sealed record PrinterRule(string Folder, string PrinterName, bool Print);
+    /// <summary>
+    /// Regra de impressão de uma pasta do TSPrint embutido. Sem impressora (null), a pasta só é criada, se ainda
+    /// não existir, com baixar/imprimir desligados: com "imprimir" ligado e sem impressora o UniLab mandaria para a
+    /// impressora padrão do Windows (a etiqueta sairia na A4). As impressões esperam no servidor até escolherem.
+    /// </summary>
+    public sealed record PrinterRule(string Folder, string? PrinterName, bool Print);
 
     public sealed record Result(string Json, IReadOnlyList<string> Changes);
 
@@ -101,6 +118,7 @@ public static partial class UnilabCloud
             return new Result(config.ToJsonString(Json), changes);   // sem licença não há o que derivar
 
         Set(config, "user", license, "licença", changes);
+        Set(config, "startMaximized", true, "iniciar maximizado", changes);
 
         if (config["tsprint"] is not JsonObject tsprint)
         {
@@ -127,18 +145,22 @@ public static partial class UnilabCloud
                 .FirstOrDefault(r => string.Equals(Text(r["folder"]), rule.Folder, StringComparison.OrdinalIgnoreCase));
             if (existing is null)
             {
+                var hasPrinter = rule.PrinterName is not null;
                 pdfRules.Add(new JsonObject
                 {
                     ["folder"] = rule.Folder,
-                    ["printerName"] = rule.PrinterName,
-                    ["download"] = true,
-                    ["print"] = rule.Print,
+                    ["printerName"] = rule.PrinterName ?? "",
+                    ["download"] = hasPrinter,
+                    ["print"] = hasPrinter && rule.Print,
                     ["rotate180"] = false,
                     ["fitToPaper"] = "none",
                 });
-                changes.Add($"pasta {rule.Folder} → {rule.PrinterName}");
+                changes.Add(hasPrinter ? $"pasta {rule.Folder} → {rule.PrinterName}" : $"pasta {rule.Folder} criada (sem impressora)");
                 continue;
             }
+
+            if (rule.PrinterName is null)
+                continue;   // pasta já existe: sem impressora encontrada, fica como está
 
             var before = changes.Count;
             Set(existing, "printerName", rule.PrinterName, $"pasta {rule.Folder} → {rule.PrinterName}", changes);
