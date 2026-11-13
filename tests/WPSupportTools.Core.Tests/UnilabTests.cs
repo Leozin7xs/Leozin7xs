@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using WPSupportTools.Core.Execution;
 using WPSupportTools.Core.Modules.Printing;
 using WPSupportTools.Core.Modules.Printing.Correction;
+using WPSupportTools.Core.Modules.Printing.Labels.Procedures;
 using WPSupportTools.Core.Modules.Unilab;
 using WPSupportTools.Core.Platform;
 using WPSupportTools.Core.Procedures;
@@ -167,6 +168,7 @@ public sealed class UnilabTests : IDisposable
         _fake.Printers.Add(new InstalledPrinter(Brother, "Brother DCP-T830DW series", "USB001", false, true));
         _fake.Printers.Add(new InstalledPrinter("Microsoft Print to PDF", "Microsoft Print To PDF", "PORTPROMPT:", false, false));
         _fake.Printers.Add(new InstalledPrinter(Zd230, Zd230, "USB002", false, false));
+        _fake.Preferences.DevModes[Zd230] = FakePreferences.NewZebraDevMode(Zd230, 1040, 508, interpolation: 0);
         _fake.TSPrintGeneralConfig = $$"""{"servidor":1,"token":"{{Hex}}"}""";
         _fake.Processes.TSPrintRunning = true;
     }
@@ -200,6 +202,7 @@ public sealed class UnilabTests : IDisposable
         Assert.Equal(Brother, UnilabCloud.PrinterOf(config, ["root"]));
         Assert.Equal("Microsoft Print to PDF", UnilabCloud.PrinterOf(config, ["pdf"]));
         Assert.Equal(Zd230, UnilabCloud.PrinterOf(config, ["etiq"]));
+        Assert.True(CheckLabelSizeProcedure.IsStandard(_fake.Preferences.DevModes[Zd230]));   // tamanho e Clipart
         Assert.Equal("01451aaa", (string?)JsonNode.Parse(config)!["tsprint"]!["password"]);   // não a do TSPrint antigo
 
         Assert.False(_fake.Processes.TSPrintRunning);                  // TSPrint antigo fechado

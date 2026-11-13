@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using WPSupportTools.Core.Modules.Printing;
 using WPSupportTools.Core.Modules.Printing.Correction;
 using WPSupportTools.Core.Modules.Printing.Labels;
+using WPSupportTools.Core.Modules.Printing.Labels.Procedures;
 using WPSupportTools.Core.Platform;
 using WPSupportTools.Core.Procedures;
 
@@ -238,14 +239,35 @@ public sealed class ConfigureUnilabProcedure(PlatformServices platform) : IProce
             return ProcedureResult.Fail("Não foi possível gravar a licença no UniLab.", ex.Message);
         }
 
+        // Etiquetadora encontrada: preferências no padrão WP (tamanho e gráficos), sem impedir a instalação.
+        string? labelNote = null;
+        if (zebra.Printer is { } labelPrinter)
+        {
+            try
+            {
+                var (before, after, ok) = FixLabelSizeProcedure.ApplyStandard(platform.Preferences, labelPrinter.Name);
+                context.Log($"Etiquetadora '{labelPrinter.Name}': antes {before}; depois {after}.");
+                if (!ok)
+                    labelNote = "o driver da etiquetadora não aceitou o tamanho/gráficos padrão";
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or ArgumentException)
+            {
+                context.Log($"Etiquetadora '{labelPrinter.Name}': preferências não ajustadas ({ex.Message}).");
+                labelNote = "não foi possível ajustar as preferências da etiquetadora";
+            }
+        }
+
         context.Log($"UniLab: {(result.Changes.Count == 0 ? "configuração já estava certa" : "ajustado: " + string.Join(", ", result.Changes))}.");
         var summary = $"Licença {license} preenchida e TSPrint do UniLab ligado" +
                       (rules.Any(r => r.PrinterName is not null)
                           ? $" ({string.Join("; ", rules.Where(r => r.PrinterName is not null).Select(r => $"{r.Folder}: {r.PrinterName}"))})"
                           : "");
-        return ProcedureResult.Ok(notes.Count == 0
+        var message = notes.Count == 0
             ? summary + "."
-            : summary + $". Atenção: {string.Join("; ", notes)} — ajuste na aba TSPrint do UniLab.");
+            : summary + $". Atenção: {string.Join("; ", notes)} — ajuste na aba TSPrint do UniLab.";
+        return ProcedureResult.Ok(labelNote is null
+            ? message
+            : message + $" Atenção: {labelNote} — use o botão \"Problema na etiquetadora\".");
     }
 
     internal static bool IsCloud(string? path) =>

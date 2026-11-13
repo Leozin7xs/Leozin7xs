@@ -116,6 +116,15 @@ que as configurações estão no padrão e a etiqueta continua desconfigurada. M
 > **Atenção:** com Interpolação = Clipart, a **página de teste do Windows não sai** neste modelo, mas a
 > página de teste **do próprio driver** (botão "Página de teste") sai normalmente.
 
+O app corrige essas três opções sozinho. Mapeado em 10/11 no **ZDesigner ZD220-203dpi ZPL** (bloco interno de
+13482 bytes, assinatura "NICELbl64"), em posições do DEVMODE (inteiros de 4 bytes):
+
+| Posição | Campo | Valores |
+|---|---|---|
+| 1888 | Interpolação | 0 = Foto … 5 = Clipart (padrão do driver: 0) |
+| 2136 | Modo de transferência | 0 = Impressão direta, 1 = Baixar (com Baixar, Tipo de gráfico fica bloqueado) |
+| 1872 | Tipo de gráfico | 2 = ZIP, 11 = Padrão (com Baixar o driver grava 11) |
+
 ---
 
 # Como o app pode ler/alterar essas configurações (investigação)

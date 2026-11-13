@@ -1,6 +1,7 @@
 using WPSupportTools.Core.Execution;
 using WPSupportTools.Core.Modules;
 using WPSupportTools.Core.Modules.Printing.Labels;
+using WPSupportTools.Core.Modules.Printing.Labels.Procedures;
 using WPSupportTools.Core.Platform;
 using WPSupportTools.Core.Procedures;
 
@@ -165,6 +166,64 @@ public sealed class LabelTests : IDisposable
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
         Assert.All(_fake.Raw.Sent, s => Assert.Equal(gc420d, s.Printer));
+    }
+
+    [Fact]
+    public void Several_online_zebras_prefer_the_one_connected_by_usb_over_tsprint_and_default()
+    {
+        // Caso real (Endocrimeta): Zebra trocada; o Windows criou "(Copiar 1)" na porta nova e as antigas ficaram.
+        var choice = LabelPrinterSelector.Select(
+        [
+            new InstalledPrinter("ZDesigner TLP 2844", "ZDesigner TLP 2844", "USB001", false, true, UsbConnected: false),
+            new InstalledPrinter("ZDesigner TLP 2844 (Copiar 1)", "ZDesigner TLP 2844", "USB002", false, false, UsbConnected: true),
+            new InstalledPrinter("ZDesigner ZD220-203dpi ZPL (Copiar 2)", Zd230, "USB003", false, false, UsbConnected: false),
+        ], tsprintLabelPrinter: "ZDesigner ZD220-203dpi ZPL (Copiar 2)");
+
+        Assert.Equal("ZDesigner TLP 2844 (Copiar 1)", choice.Printer?.Name);
+        Assert.Contains("USB", choice.Message);
+    }
+
+    [Fact]
+    public void Old_copies_on_usb_ports_without_device_are_left_out()
+    {
+        var choice = LabelPrinterSelector.Select(
+        [
+            new InstalledPrinter("Zebra antiga", Zd230, "USB001", false, true, UsbConnected: false),
+            new InstalledPrinter("Zebra rede", Zd230, "IP_192.168.0.50", false, false),
+        ]);
+
+        Assert.Equal("Zebra rede", choice.Printer?.Name);
+    }
+
+    [Fact]
+    public void Two_zebras_connected_by_usb_fall_back_to_tsprint()
+    {
+        var choice = LabelPrinterSelector.Select(
+        [
+            new InstalledPrinter("A", Zd230, "USB001", false, false, UsbConnected: true),
+            new InstalledPrinter("B", Gc420, "USB002", false, false, UsbConnected: true),
+            new InstalledPrinter("C", Zd230, "IP_1", false, false),
+        ], tsprintLabelPrinter: "B");
+
+        Assert.Equal("B", choice.Printer?.Name);
+    }
+
+    [Fact]
+    public async Task Misconfigured_flow_moves_tsprint_to_the_zebra_connected_by_usb()
+    {
+        const string usbZebra = "ZDesigner TLP 2844 (Copiar 1)";
+        _fake.Printers.Add(new InstalledPrinter("ZDesigner ZD220-203dpi ZPL (Copiar 2)", Zd230, "USB003", false, false, UsbConnected: false));
+        _fake.Printers.Add(new InstalledPrinter(usbZebra, "ZDesigner TLP 2844", "USB002", false, false, UsbConnected: true));
+        _fake.Preferences.DevModes[usbZebra] = FakePreferences.NewDevMode(usbZebra, 1040, 508);
+        _fake.TSPrintPrinterConfig = TSPrintConfig.Replace("ZDesigner TLP 2844 (Copiar 5)", "ZDesigner ZD220-203dpi ZPL (Copiar 2)");
+        _fake.Processes.ExistingFiles.Add(TSPrintExe);
+
+        var report = await RunAsync(LabelSequences.CreateMisconfigured(_fake.Build()));
+
+        Assert.True(report.Outcome == SequenceOutcome.Succeeded, string.Join(" | ", report.Results.Select(r => r.Message)));
+        Assert.Equal(usbZebra, TSPrintLabelPrinter.From(_fake.TSPrintPrinterConfig));
+        Assert.True(CheckLabelSizeProcedure.IsStandardSize(new DevMode(_fake.Preferences.DevModes[usbZebra])));
+        Assert.All(_fake.Raw.Sent, s => Assert.Equal(usbZebra, s.Printer));
     }
 
     [Fact]
@@ -343,6 +402,50 @@ public sealed class LabelTests : IDisposable
         Assert.Equal(DevMode.OrientationPortrait, changed.Orientation);
         Assert.Equal(Zd230, changed.DeviceName);
         Assert.Equal(original[220..], changed.ToArray()[220..]);
+    }
+
+    [Fact]
+    public void Zebra_graphics_go_to_clipart_direct_print_and_zip_keeping_the_rest()
+    {
+        var foto = FakePreferences.NewZebraDevMode(Zd230, 508, 254, interpolation: 0, transfer: 1, graphicsType: 11);
+        Assert.True(ZebraGraphics.IsKnownLayout(foto));
+        Assert.False(ZebraGraphics.IsStandard(foto));
+
+        var fixedMode = ZebraGraphics.WithStandard(foto);
+
+        Assert.True(ZebraGraphics.IsStandard(fixedMode));
+        Assert.Equal(5u, BitConverter.ToUInt32(fixedMode, 1888));   // Clipart
+        Assert.Equal(0u, BitConverter.ToUInt32(fixedMode, 2136));   // impressão direta
+        Assert.Equal(2u, BitConverter.ToUInt32(fixedMode, 1872));   // ZIP
+        Assert.Equal(0x5A, fixedMode[3000]);
+        Assert.Equal(foto.Length, fixedMode.Length);
+    }
+
+    [Fact]
+    public void Unknown_driver_layout_is_never_touched()
+    {
+        var other = FakePreferences.NewDevMode(Zd230, 508, 254);   // outro driver: bloco privado diferente
+        Assert.False(ZebraGraphics.IsKnownLayout(other));
+        Assert.True(ZebraGraphics.IsStandard(other));
+        Assert.Equal(other, ZebraGraphics.WithStandard(other));
+
+        var strange = FakePreferences.NewZebraDevMode(Zd230, 508, 254, interpolation: 9);   // fora do esperado
+        Assert.False(ZebraGraphics.IsKnownLayout(strange));
+        Assert.Equal(strange, ZebraGraphics.WithStandard(strange));
+    }
+
+    [Fact]
+    public async Task Misconfigured_graphics_are_fixed_even_with_the_right_size()
+    {
+        _fake.Printers.Add(Printer(Zd230, Zd230));
+        _fake.Preferences.DevModes[Zd230] = FakePreferences.NewZebraDevMode(Zd230, 508, 254, interpolation: 0);
+
+        var report = await RunAsync(LabelSequences.CreateMisconfigured(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal([Zd230], _fake.Preferences.Writes);
+        Assert.True(ZebraGraphics.IsStandard(_fake.Preferences.DevModes[Zd230]));
+        Assert.Contains("Clipart", report.Results[2].Message);
     }
 
     // ---------- "Sai desconfigurada" ----------

@@ -4,13 +4,13 @@ using WPSupportTools.Core.Procedures;
 namespace WPSupportTools.Core.Modules.Printing.Labels.Procedures;
 
 /// <summary>
-/// Volta tamanho e orientação para o padrão nas preferências de impressão do usuário
-/// (mesma tela "Preferências de impressão"). Altera somente esses campos e confere em seguida.
+/// Volta tamanho, orientação e opções de gráficos (Clipart, impressão direta) para o padrão nas preferências de
+/// impressão do usuário (mesma tela "Preferências de impressão"). Altera somente esses campos e confere em seguida.
 /// </summary>
 public sealed class FixLabelSizeProcedure(PlatformServices platform) : IProcedure
 {
     public string Id => "labels.fix-size";
-    public string DisplayName => "Corrigindo tamanho da etiqueta";
+    public string DisplayName => "Corrigindo tamanho e gráficos da etiqueta";
     public bool RequiresElevation => false;
 
     public Task<ProcedureResult> ExecuteAsync(ProcedureContext context, CancellationToken cancellationToken)
@@ -18,15 +18,31 @@ public sealed class FixLabelSizeProcedure(PlatformServices platform) : IProcedur
         var printer = context.State.GetText(LabelState.PrinterName)
                       ?? throw new InvalidOperationException("Etiquetadora não localizada.");
 
-        var before = new DevMode(platform.Preferences.Read(printer));
-        var desired = before.WithPaper(LabelConstants.StandardWidth, LabelConstants.StandardLength, DevMode.OrientationPortrait);
-        platform.Preferences.Write(printer, desired.ToArray());
+        var (before, after, ok) = ApplyStandard(platform.Preferences, printer);
+        context.Log($"Preferências de '{printer}': antes {before}; depois {after}.");
 
-        var after = new DevMode(platform.Preferences.Read(printer));
-        context.Log($"Preferências de '{printer}': antes {before.Describe()}; depois {after.Describe()}.");
+        return Task.FromResult(ok
+            ? ProcedureResult.Ok($"Corrigido: {before} → {after}.")
+            : ProcedureResult.Fail("O driver não aceitou o padrão da etiqueta.", $"Ficou: {after}"));
+    }
 
-        return Task.FromResult(CheckLabelSizeProcedure.IsStandard(after)
-            ? ProcedureResult.Ok($"Corrigido: {before.Describe()} → {after.Describe()}.")
-            : ProcedureResult.Fail("O driver não aceitou o tamanho padrão.", $"Ficou: {after.Describe()}"));
+    /// <summary>Grava o padrão WP (tamanho, orientação e gráficos) e confere; não grava se já estiver no padrão.</summary>
+    internal static (string Before, string After, bool Ok) ApplyStandard(IPrinterPreferences preferences, string printer)
+    {
+        var current = preferences.Read(printer);
+        var before = CheckLabelSizeProcedure.Describe(current);
+        if (CheckLabelSizeProcedure.IsStandard(current))
+            return (before, before, true);
+
+        // Só mexe no tamanho se ele estiver errado: o driver recalcula outros campos quando ele é regravado.
+        var desired = CheckLabelSizeProcedure.IsStandardSize(new DevMode(current))
+            ? current
+            : new DevMode(current)
+                .WithPaper(LabelConstants.StandardWidth, LabelConstants.StandardLength, DevMode.OrientationPortrait)
+                .ToArray();
+        preferences.Write(printer, ZebraGraphics.WithStandard(desired));
+
+        var after = preferences.Read(printer);
+        return (before, CheckLabelSizeProcedure.Describe(after), CheckLabelSizeProcedure.IsStandard(after));
     }
 }

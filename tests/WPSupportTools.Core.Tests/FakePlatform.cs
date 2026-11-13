@@ -172,6 +172,19 @@ internal sealed class FakePreferences : IPrinterPreferences
             data[i] = (byte)(0xA0 + i - 220);   // parte privada: deve ser preservada
         return data;
     }
+    /// <summary>DEVMODE no layout do ZDesigner ZPL (NiceLabel): bloco privado de 13482 bytes com a assinatura no fim.</summary>
+    public static byte[] NewZebraDevMode(string device, short width, short length, uint interpolation, uint transfer = 0, uint graphicsType = 2)
+    {
+        var data = new byte[220 + 13482];
+        NewDevMode(device, width, length).AsSpan(0, 220).CopyTo(data);
+        BitConverter.GetBytes((ushort)13482).CopyTo(data, 70);
+        System.Text.Encoding.ASCII.GetBytes("NICELbl64").CopyTo(data, data.Length - 9);
+        BitConverter.GetBytes(interpolation).CopyTo(data, 1888);
+        BitConverter.GetBytes(transfer).CopyTo(data, 2136);
+        BitConverter.GetBytes(graphicsType).CopyTo(data, 1872);
+        data[3000] = 0x5A;   // outro dado do driver: deve ser preservado
+        return data;
+    }
 }
 
 internal sealed class FakeRawPrinter : IRawPrinter

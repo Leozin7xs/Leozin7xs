@@ -34,7 +34,8 @@ public sealed class LocateLabelPrinterProcedure(PlatformServices platform) : IPr
 
         foreach (var zebra in printers.Where(p => ZebraModel.LanguageOf(p.DriverName) is not null))
             context.Log($"Zebra instalada: '{zebra.Name}' (driver {zebra.DriverName}, porta {zebra.PortName}, " +
-                        $"{(zebra.IsOffline ? "offline" : "online")}{(zebra.IsDefault ? ", padrão" : "")}).");
+                        $"{(zebra.IsOffline ? "offline" : "online")}{(zebra.IsDefault ? ", padrão" : "")}" +
+                        $"{(zebra.UsbConnected switch { true => ", USB conectada", false => ", porta USB sem aparelho", _ => "" })}).");
 
         var tsprintLabelPrinter = ReadTSPrintLabelPrinter(context);
 

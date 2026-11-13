@@ -2,8 +2,11 @@ namespace WPSupportTools.Core.Platform;
 
 /// <summary>Impressora instalada no Windows (somente o necessário para identificá-la).</summary>
 /// <param name="Problem">O que o Windows diz que precisa de atenção na impressora (ex.: "sem papel"), ou null.</param>
+/// <param name="UsbConnected">Porta USB: true com o aparelho conectado, false com a porta sem aparelho
+/// (impressora trocada, cabo solto ou desligada); null fora de porta USB ou sem como saber.</param>
 public sealed record InstalledPrinter(
-    string Name, string DriverName, string PortName, bool IsOffline, bool IsDefault, string? Problem = null);
+    string Name, string DriverName, string PortName, bool IsOffline, bool IsDefault, string? Problem = null,
+    bool? UsbConnected = null);
 
 /// <summary>Impressoras instaladas (somente leitura).</summary>
 public interface IPrinterCatalog

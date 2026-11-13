@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.8):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> **Status atual (v0.6.9):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
 > (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
 > conferem o TSPrint dele em vez do TSPrint antigo.
 
@@ -162,7 +162,8 @@ A atendente informa a **licença** (ex.: `@01451exemplo01`, o usuário do UniLab
   baixa) e `etiq` (Zebra; baixar e imprimir, sem girar, tamanho real). As pastas `root` e `etiq` são sempre
   criadas; sem impressora encontrada, ficam sem impressora e com baixar/imprimir em "Não" (com "Sim" e sem
   impressora o UniLab imprimiria na impressora padrão do Windows), e as impressões esperam no servidor. Quando a
-  impressora aparece, os botões de impressora a conectam e ligam baixar/imprimir. O UniLab é fechado antes de gravar e,
+  impressora aparece, os botões de impressora a conectam e ligam baixar/imprimir. Com a Zebra encontrada, as
+  preferências dela vão para o padrão (50,8 × 25,4 mm e gráficos). O UniLab é fechado antes de gravar e,
   ao abrir, liga o TSPrint sozinho (botão da impressora verde).
 - **TSPrint antigo:** os dois puxariam as mesmas impressões, então o antigo é fechado, sai da inicialização do
   Windows e o atalho do UniLab antigo sai da área de trabalho (atalhos guardados em
@@ -175,14 +176,18 @@ A atendente informa a **licença** (ex.: `@01451exemplo01`, o usuário do UniLab
 A funcionária escolhe **"Não sai nada"** ou **"Sai desconfigurada"**. Padrão WP em `docs/padrao-etiquetadoras.md`.
 
 **Escolha da etiquetadora:** só drivers `ZDesigner`. Ignora cópias offline; se houver mais de uma ligada,
-usa a que o **TSPrint** tem configurada para etiquetas (pasta `etiq` em `print_doc_cnf.data`); se não der,
-a padrão do Windows; senão não adivinha e pede o técnico. Se todas estiverem offline, avisa
+usa a **conectada por USB agora** (trocar a Zebra deixa a antiga instalada e o Windows cria "(Copiar 1)"; o app
+vê no registro quais portas USB001... têm aparelho, em `DeviceClasses\{28d78fad-...}\#\Control\Linked`). Sem
+isso, deixa de fora as de porta USB sem aparelho e usa a única que sobrar, a que o **TSPrint** tem configurada
+para etiquetas (pasta `etiq` em `print_doc_cnf.data`) ou a padrão do Windows; senão não adivinha e pede o
+técnico. A escolhida passa a ser a da pasta `etiq` (TSPrint antigo ou UniLab novo). O "Instalar o UniLab" usa a
+mesma escolha. Se todas estiverem offline, avisa
 "desligada ou desconectada" e não faz mais nada.
 
 | "Não sai nada" | "Sai desconfigurada" |
 |---|---|
 | 1. Localizando a etiquetadora | 1. Localizando a etiquetadora |
-| 2. Fila **só da etiquetadora**: qualquer documento parado conta | 2. Conferindo tamanho (50,8 × 25,4 mm, retrato) |
+| 2. Fila **só da etiquetadora**: qualquer documento parado conta | 2. Conferindo tamanho (50,8 × 25,4 mm, retrato) e gráficos |
 | 3–8. Se houver: cancelar, parar spooler, limpar arquivos da Zebra, iniciar, cancelar restantes, conferir vazia | 3. Se fora do padrão: corrigir nas preferências do usuário |
 | 9. TSPrint imprimindo etiquetas nessa Zebra? Se não, troca | 4. Calibrar (ZPL `~JC` / EPL `xa`) |
 | 10–11. Se a fila estava normal: TSPrint aberto? | 5. TSPrint imprimindo etiquetas nessa Zebra? Se não, troca |
@@ -197,7 +202,12 @@ um `.wpst-modelo.json` por Zebra (preferências completas do driver, incluindo o
 modo, offsets e gráficos, mais driver e versão) e uma cópia de reserva do Windows (`printui /Ss`).
 Passo a passo em `docs/padrao-etiquetadoras.md`.
 
-**Ainda não feito:** conferir/corrigir escuridão, velocidade, modo, offsets e gráficos (depende da
+**Opções de gráficos** (ZDesigner ZPL): Interpolação em **Clipart**, Modo de transferência em **Impressão direta** e
+Tipo de gráfico **ZIP** (o driver vem em Foto). Ficam no bloco interno das preferências; as posições foram mapeadas
+no ZD220 ZPL e só são alteradas quando o bloco tem exatamente esse formato (assinatura "NICELbl", 13482 bytes);
+outro driver fica como está. Também é aplicado pelo "Instalar o UniLab" quando ele encontra a Zebra.
+
+**Ainda não feito:** conferir/corrigir escuridão, velocidade, modo e offsets (depende da
 "configuração modelo" — ver docs). Comandos de calibração a validar com cada modelo.
 
 ## Elevação de privilégios (serviço ou UAC)
