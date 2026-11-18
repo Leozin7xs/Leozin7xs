@@ -21,8 +21,11 @@ public enum PrintJobStatus : uint
     Retained = 8192,
 }
 
-/// <summary>Somente o necessário. Nome do documento e do usuário NÃO são lidos.</summary>
-public sealed record PrintJobInfo(string PrinterName, PrintJobStatus Status, DateTime? SubmittedAt);
+/// <summary>
+/// Somente o necessário. Nome do documento e do usuário NÃO são lidos.
+/// <paramref name="JobId"/> é o número do documento na fila (o mesmo dos arquivos FPnnnnn.SHD/.SPL da pasta da fila).
+/// </summary>
+public sealed record PrintJobInfo(string PrinterName, PrintJobStatus Status, DateTime? SubmittedAt, uint? JobId = null);
 
 /// <summary>Fila de impressão do Windows, sempre através do próprio serviço de impressão.</summary>
 public interface IPrintQueue

@@ -118,7 +118,8 @@ public sealed class PrintingFlowTests : IDisposable
         var report = await RunAsync();
 
         Assert.Equal(ProcedureOutcome.Success, report.Results[1].Outcome);   // não interrompe
-        Assert.Equal(["stop Spooler", "start Spooler"], _fake.Services.Calls);
+        // sobrou documento: reinicia mais uma vez, como o técnico faz pelo services.msc
+        Assert.Equal(["stop Spooler", "start Spooler", "stop Spooler", "start Spooler"], _fake.Services.Calls);
         Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);                // e a conferência mostra o que sobrou
         Assert.Equal(6, report.FailedStepIndex);
@@ -151,8 +152,32 @@ public sealed class PrintingFlowTests : IDisposable
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
         Assert.Equal(6, report.FailedStepIndex);
-        Assert.Equal(["stop Spooler", "start Spooler"], _fake.Services.Calls);
+        Assert.Equal(["stop Spooler", "start Spooler", "stop Spooler", "start Spooler"], _fake.Services.Calls);
         Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
+    }
+
+    [Fact]
+    public async Task Job_that_only_leaves_after_a_second_restart_is_cleared_like_the_technician_does()
+    {
+        AddStuckJob();
+        _fake.Queue.CancelIgnoredUntilRestarts = 2;
+
+        var report = await RunAsync();
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(["stop Spooler", "start Spooler", "stop Spooler", "start Spooler"], _fake.Services.Calls);
+        Assert.Equal([[1, 2, 3, 4, 5]], _elevated.Requests);   // tudo no mesmo pedido de administrador
+        Assert.Empty(_fake.Jobs);
+    }
+
+    [Fact]
+    public async Task Queue_already_empty_after_restart_does_not_restart_again()
+    {
+        AddStuckJob();
+
+        await RunAsync();
+
+        Assert.Equal(["stop Spooler", "start Spooler"], _fake.Services.Calls);
     }
 
     [Fact]

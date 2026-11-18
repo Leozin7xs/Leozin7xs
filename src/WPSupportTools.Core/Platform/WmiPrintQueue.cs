@@ -14,7 +14,7 @@ internal sealed class WmiPrintQueue : IPrintQueue
     {
         using var searcher = new ManagementObjectSearcher(
             new ManagementScope(@"root\cimv2"),
-            new ObjectQuery("SELECT Name, StatusMask, TimeSubmitted FROM Win32_PrintJob"),
+            new ObjectQuery("SELECT Name, JobId, StatusMask, TimeSubmitted FROM Win32_PrintJob"),
             new System.Management.EnumerationOptions { Timeout = QueryTimeout, ReturnImmediately = true, Rewindable = false });
         using var collection = searcher.Get();
 
@@ -34,7 +34,11 @@ internal sealed class WmiPrintQueue : IPrintQueue
                 if (item["TimeSubmitted"] is string dmtf && !string.IsNullOrEmpty(dmtf))
                     submitted = ManagementDateTimeConverter.ToDateTime(dmtf);
 
-                jobs.Add(new PrintJobInfo(printer, status, submitted));
+                uint? jobId = item["JobId"] is uint id ? id
+                    : comma > 0 && uint.TryParse(name[(comma + 1)..].Trim(), out var parsed) ? parsed
+                    : null;
+
+                jobs.Add(new PrintJobInfo(printer, status, submitted, jobId));
             }
         }
 

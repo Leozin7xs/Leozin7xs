@@ -8,7 +8,8 @@ namespace WPSupportTools.Core.Modules.Printing.Correction.Procedures;
 /// arquivos da fila (.SHD/.SPL) na pasta padrão do Windows.
 /// <list type="bullet">
 ///   <item>Se a verificação identificou as impressoras travadas, apaga só os documentos delas
-///         (identificados pelo nome da impressora dentro do .SHD). Documentos de outras impressoras ficam.</item>
+///         (identificados pelo nome da impressora dentro do .SHD ou, se o .SHD não deixar ver, pelo número de um
+///         documento que acabou de ser cancelado nelas). Documentos de outras impressoras ficam.</item>
 ///   <item>Se a fila estava travada a ponto de não dar para ler, apaga todos os documentos da pasta.</item>
 ///   <item>.SPL sem o .SHD correspondente (resto de documento) é apagado.</item>
 ///   <item>Só a pasta padrão, só se for a configurada no Windows; sem subpastas e sem seguir links.</item>
@@ -52,14 +53,20 @@ public sealed class ClearSpoolFilesProcedure(PlatformServices platform) : IProce
         var shadows = files.Where(f => f.Extension.Equals(".SHD", StringComparison.OrdinalIgnoreCase)).ToList();
         var spools = files.Where(f => f.Extension.Equals(".SPL", StringComparison.OrdinalIgnoreCase)).ToList();
 
+        var jobIds = PrintingState.GetJobIds(context.State);
         var toDelete = new List<FileInfo>();
-        int kept = 0, unidentified = 0;
+        int kept = 0, unidentified = 0, byJobId = 0;
         foreach (var shadow in shadows)
         {
             var owner = await ReadOwnerAsync(shadow, printers, cancellationToken);
-            var delete = targets is null || (owner is not null && targets.Contains(owner, StringComparer.OrdinalIgnoreCase));
+            var ownerIsTarget = owner is not null && targets is not null && targets.Contains(owner, StringComparer.OrdinalIgnoreCase);
+            // Documento cancelado agora há pouco nas impressoras tratadas: o número dele é o do arquivo.
+            var cancelledHere = !ownerIsTarget && JobIdOf(shadow) is { } id && jobIds.Contains(id);
+            var delete = targets is null || ownerIsTarget || cancelledHere;
             if (owner is null)
                 unidentified++;
+            if (cancelledHere && targets is not null)
+                byJobId++;
 
             if (!delete)
             {
@@ -77,7 +84,8 @@ public sealed class ClearSpoolFilesProcedure(PlatformServices platform) : IProce
         var errors = await DeleteAsync(toDelete, cancellationToken);
         var deleted = toDelete.Count - errors.Count;
         context.Log($"Arquivos da fila ({standard}): {deleted} apagado(s), {kept} documento(s) de outras impressoras mantido(s), " +
-                    $"{unidentified} sem impressora identificada, {errors.Count} com erro" +
+                    $"{unidentified} sem impressora identificada, {byJobId} reconhecido(s) pelo número do documento cancelado, " +
+                    $"{errors.Count} com erro" +
                     $"{(targets is null ? "; fila ilegível: todos os documentos foram incluídos" : "")}.");
 
         if (errors.Count > 0)
@@ -85,6 +93,15 @@ public sealed class ClearSpoolFilesProcedure(PlatformServices platform) : IProce
                 string.Join(" | ", errors.Take(5)));
 
         return ProcedureResult.Ok(deleted == 0 ? "Não havia arquivos para limpar." : $"Fila limpa ({deleted} arquivo(s) apagado(s)).");
+    }
+
+    /// <summary>Número do documento pelo nome do arquivo: "FP00012.SHD" ou "00012.SHD" → 12.</summary>
+    internal static uint? JobIdOf(FileInfo file)
+    {
+        var name = Path.GetFileNameWithoutExtension(file.Name);
+        if (name.StartsWith("FP", StringComparison.OrdinalIgnoreCase))
+            name = name[2..];
+        return name.Length > 0 && name.All(char.IsAsciiDigit) && uint.TryParse(name, out var id) ? id : null;
     }
 
     private static bool SameJob(FileInfo a, FileInfo b) =>

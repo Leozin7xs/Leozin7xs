@@ -59,6 +59,22 @@ public static class PrintingState
     /// </summary>
     public const string TargetPrinters = "printing.target-printers";
 
+    /// <summary>
+    /// Números dos documentos cancelados nas impressoras tratadas (separados por quebra de linha). Usado na limpeza
+    /// da pasta da fila quando o arquivo .SHD não deixa ver de qual impressora é (ex.: documento vindo do TSPrint).
+    /// Só vale dentro do mesmo processo: é gravado ao cancelar e lido logo depois, com o serviço parado.
+    /// </summary>
+    public const string TargetJobIds = "printing.target-job-ids";
+
+    public static IReadOnlySet<uint> GetJobIds(WPSupportTools.Core.Procedures.RunState state) =>
+        (state.GetText(TargetJobIds) ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => uint.TryParse(t, out var id) ? id : (uint?)null)
+            .OfType<uint>()
+            .ToHashSet();
+
+    public static void AddJobIds(WPSupportTools.Core.Procedures.RunState state, IEnumerable<uint> ids) =>
+        state.SetText(TargetJobIds, string.Join('\n', GetJobIds(state).Union(ids).Order()));
+
     /// <summary>O TSPrint está aberto na sessão do usuário.</summary>
     public const string TSPrintRunning = "printing.tsprint-running";
 }

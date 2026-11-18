@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.6.9):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> **Status atual (v0.7.0):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
 > (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
 > conferem o TSPrint dele em vez do TSPrint antigo.
 
@@ -109,12 +109,15 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado ou 
   serviço de impressão, **somente nas impressoras com documento travado**. Se a fila estiver tão travada que
   não deixa cancelar, a etapa não interrompe: segue para parar o serviço e limpar os arquivos.
 - **Limpar arquivos da fila** (com o spooler parado): apaga os .SHD/.SPL **só das impressoras travadas**
-  (identificadas pelo nome da impressora dentro do .SHD); se a fila nem pôde ser lida, apaga todos, como o
+  (identificadas pelo nome da impressora dentro do .SHD ou, quando o .SHD não deixa ver — ex.: documento vindo do
+  TSPrint —, pelo número de um documento que acabou de ser cancelado nelas); se a fila nem pôde ser lida, apaga todos, como o
   técnico faz à mão. Só a pasta padrão `%SystemRoot%\System32\spool\PRINTERS`, sem subpastas nem links.
 - **Parar spooler:** só o serviço `Spooler`. Se outro serviço depender dele e estiver rodando, não para nada.
 - **Iniciar spooler:** roda **mesmo se uma etapa anterior falhar** — o spooler nunca fica desligado ao final.
   Se o serviço estiver desativado no Windows, não altera; informa o suporte.
 - **Cancelar restantes:** documentos presos em "excluindo" podem voltar quando o spooler reinicia; são cancelados de novo.
+  Se mesmo assim sobrar documento, faz como o técnico (que reinicia de novo pelo services.msc): para o serviço, limpa os
+  arquivos desses documentos, religa e cancela mais uma vez — no mesmo pedido de administrador.
 - **Conferir fila:** a fila das impressoras tratadas tem que ficar **vazia**; se sobrar qualquer documento,
   a correção falha e orienta chamar o técnico (spooler ligado).
 - **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo

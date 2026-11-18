@@ -1,5 +1,6 @@
 using WPSupportTools.Core.Execution;
 using WPSupportTools.Core.Modules;
+using WPSupportTools.Core.Modules.Printing.Correction.Procedures;
 using WPSupportTools.Core.Modules.Printing.Labels;
 using WPSupportTools.Core.Modules.Printing.Labels.Procedures;
 using WPSupportTools.Core.Platform;
@@ -573,6 +574,39 @@ public sealed class LabelTests : IDisposable
         Assert.Contains("não foi limpa", report.Results[7].Message);
         Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
         Assert.Empty(_fake.Raw.Sent);   // não manda etiqueta de teste para fila travada
+    }
+
+    [Fact]
+    public async Task Not_printing_clears_tsprint_job_whose_spool_file_does_not_show_the_printer()
+    {
+        // Caso da Assis Brasil: documento do TSPrint preso em "Excluindo, Imprimindo". O .SHD dele tem o nome de
+        // mais de uma impressora; antes ele ficava na pasta e voltava ao religar o serviço.
+        const string brother = "Brother DCP-T820DW";
+        _fake.Printers.Add(Printer(Zd230, Zd230));
+        _fake.Queue.InstalledPrinters.UnionWith([Zd230, brother]);
+        _fake.Queue.CancelledJobsLiveInSpoolFiles = true;
+        _fake.Jobs.Add(new PrintJobInfo(Zd230, PrintJobStatus.Error | PrintJobStatus.Printing | PrintJobStatus.Retained, _fake.Now, 12));
+        _fake.AddSpoolFile(12, Zd230, brother);
+        _fake.Jobs.Add(new PrintJobInfo(brother, PrintJobStatus.Spooling, _fake.Now, 13));
+        _fake.AddSpoolFile(13, brother);
+
+        var report = await new SequenceRunner(isElevated: false, new RecordingElevatedRunner())
+            .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(["FP00013.SHD", "FP00013.SPL"], _fake.SpoolFiles());          // documento da Brother fica
+        Assert.Equal(["stop Spooler", "start Spooler"], _fake.Services.Calls);     // resolveu já no primeiro reinício
+        Assert.Single(_fake.Jobs, j => j.PrinterName == brother);
+        Assert.Contains(_events.OfType<LogEvent>(), e => e.Message.Contains("1 reconhecido(s) pelo número do documento"));
+    }
+
+    [Fact]
+    public void Spool_file_number_is_read_from_both_windows_name_formats()
+    {
+        Assert.Equal(12u, ClearSpoolFilesProcedure.JobIdOf(new FileInfo("FP00012.SHD")));
+        Assert.Equal(7u, ClearSpoolFilesProcedure.JobIdOf(new FileInfo("00007.SHD")));
+        Assert.Null(ClearSpoolFilesProcedure.JobIdOf(new FileInfo("FPabc.SHD")));
+        Assert.Null(ClearSpoolFilesProcedure.JobIdOf(new FileInfo("FP.SHD")));
     }
 
     [Fact]

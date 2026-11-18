@@ -31,6 +31,8 @@ internal sealed class FakePlatform : IDisposable
         {
             Queue.Unreadable = false;
             Queue.ReloadAfterRestart();
+            if (Queue.CancelledJobsLiveInSpoolFiles)
+                Jobs.RemoveAll(j => j.JobId is { } id && !File.Exists(SpoolPath($"FP{id:00000}.SHD")));
             if (QueueFollowsSpoolFolder)
                 RebuildQueueFromSpoolFolder();
         };
@@ -99,6 +101,21 @@ internal sealed class FakePlatform : IDisposable
         File.WriteAllText(SpoolPath($"{number:00000}.SPL"), "conteudo");
         if (!RegistryPrinters.Contains(printer))
             RegistryPrinters.Add(printer);
+    }
+
+    /// <summary>
+    /// Documento como o Windows 10 grava (FPnnnnn.SHD/.SPL), com os nomes de impressora dados dentro do .SHD.
+    /// Mais de um nome = o app não consegue saber de qual impressora é (caso do documento vindo do TSPrint).
+    /// </summary>
+    public void AddSpoolFile(uint jobId, params string[] printerNamesInside)
+    {
+        var shd = new List<byte>(new byte[] { 0x4B, 0x49, 0, 0, 0x10, 0, 0, 0 });
+        foreach (var name in printerNamesInside)
+            shd.AddRange(System.Text.Encoding.Unicode.GetBytes(name + "\0"));
+        File.WriteAllBytes(SpoolPath($"FP{jobId:00000}.SHD"), [.. shd]);
+        File.WriteAllText(SpoolPath($"FP{jobId:00000}.SPL"), "conteudo");
+        foreach (var name in printerNamesInside.Where(n => !RegistryPrinters.Contains(n)))
+            RegistryPrinters.Add(name);
     }
 
     public string SpoolPath(string name) => Path.Combine(SpoolFolder, name);
@@ -207,10 +224,22 @@ internal sealed class FakePrintQueue : IPrintQueue
     /// <summary>Simula documento preso em "excluindo" que volta quando o spooler reinicia.</summary>
     public bool CancelledJobsReturnOnRestart { get; set; }
 
+    /// <summary>
+    /// Simula o caso da Assis Brasil: o documento cancelado fica "Excluindo, Imprimindo" e só some quando o
+    /// arquivo dele (FPnnnnn.SHD) sai da pasta da fila e o serviço é reiniciado.
+    /// </summary>
+    public bool CancelledJobsLiveInSpoolFiles { get; set; }
+
+    /// <summary>Cancelar não tem efeito até o serviço ser reiniciado este número de vezes.</summary>
+    public int CancelIgnoredUntilRestarts { get; set; }
+
+    public int Restarts { get; private set; }
+
     private readonly List<PrintJobInfo> _pendingDeletion = [];
 
     public void ReloadAfterRestart()
     {
+        Restarts++;
         Jobs.AddRange(_pendingDeletion);
         _pendingDeletion.Clear();
     }
@@ -229,8 +258,16 @@ internal sealed class FakePrintQueue : IPrintQueue
             return false;
 
         Cancelled.Add(printerName);
-        if (JobsSurviveCancel)
+        if (JobsSurviveCancel || Restarts < CancelIgnoredUntilRestarts)
             return true;
+
+        if (CancelledJobsLiveInSpoolFiles)
+        {
+            for (var i = 0; i < Jobs.Count; i++)
+                if (string.Equals(Jobs[i].PrinterName, printerName, StringComparison.OrdinalIgnoreCase) && Jobs[i].JobId is not null)
+                    Jobs[i] = Jobs[i] with { Status = PrintJobStatus.Deleting | PrintJobStatus.Printing | PrintJobStatus.Retained };
+            return true;
+        }
 
         var removed = Jobs.Where(j => string.Equals(j.PrinterName, printerName, StringComparison.OrdinalIgnoreCase)).ToList();
         Jobs.RemoveAll(removed.Contains);
