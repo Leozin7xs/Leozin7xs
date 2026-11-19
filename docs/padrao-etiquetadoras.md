@@ -66,6 +66,19 @@ e ZDesigner ZD230-203dpi ZPL. Os drivers EPL e ZPL têm telas e nomes de campos 
 |---|---|---|
 | Dithering type | **None** | melhora o código de barras |
 
+**TLP 2844 — o app corrige sozinho** Darkness, Dithering e rotate 180° (mapeado em 19/11 no driver "ZDesigner TLP 2844",
+bloco interno de 1533 bytes, assinatura "NICELbl64", modelo gravado na posição 1700):
+
+| Posição | Campo | Valores |
+|---|---|---|
+| 230 | rotate 180° | 1 byte: 0 = desmarcado, 1 = marcado (fora da área do CRC) |
+| 898 | CRC-16 | CCITT (polinômio 0x1021) da área protegida, que vai até o fim do DEVMODE |
+| 1252 | Darkness | 0 … 15 (inteiro de 4 bytes; padrão do driver 7) |
+| 1488 | Dithering | 0 = Smooth, 1 = Scanned, 2 = Detail, 3 = None (inteiro de 4 bytes) |
+
+Sem recalcular o CRC o driver descarta Darkness e Dithering (volta ao padrão de fábrica). O app recalcula pela
+diferença em relação ao DEVMODE lido do próprio driver. A GC420t não foi mapeada.
+
 > **Atenção:** com Dithering = None, a **página de teste do Windows sai em branco** nesses modelos.
 > Portanto o app **nunca** deve usar a página de teste do Windows para avaliar a etiquetadora.
 

@@ -9,8 +9,9 @@ namespace WPSupportTools.Core.Modules.Printing.Correction;
 /// <code>
 /// 1. Ver se a fila de impressão está travada (documento com erro).
 ///    Se SIM: cancelar os documentos da fila travada, parar o spooler (net stop spooler), apagar os
-///            arquivos da fila, iniciar o spooler (net start spooler), cancelar o que voltar e
-///            conferir se a fila ficou vazia.
+///            arquivos da fila, iniciar o spooler (net start spooler), cancelar o que voltar; se a
+///            impressora for compartilhada por outro computador e a fila não limpou, excluir e conectar de
+///            novo; conferir se a fila ficou vazia.
 ///    Sempre: conferir a conexão do TSPrint com o servidor da WP (e configurar, se estiver fora do padrão);
 ///            conferir se a impressora A4 do TSPrint (pasta "root") existe e está funcionando; se não,
 ///            e houver exatamente uma outra funcionando, trocar no TSPrint.
@@ -36,6 +37,8 @@ public static class PrintingFixSequence
             new ConditionalProcedure(new ClearSpoolFilesProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), OnlyIfQueueStuck),
+            // Compartilhada por outro computador e a fila não limpou: exclui e conecta de novo, como o técnico.
+            new ConditionalProcedure(new ReconnectSharedPrinterProcedure(platform), OnlyIfQueueStuck),
             new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), OnlyIfQueueStuck),
 
             // Sempre: o TSPrint está conectado ao servidor da WP e imprime os documentos A4 numa impressora

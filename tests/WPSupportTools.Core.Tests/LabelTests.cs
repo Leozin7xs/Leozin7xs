@@ -298,7 +298,7 @@ public sealed class LabelTests : IDisposable
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
         Assert.Equal(Zd230, TSPrintLabelPrinter.From(_fake.TSPrintPrinterConfig));
-        Assert.Contains("agora vão para", report.Results[9].Message);
+        Assert.Contains("agora vão para", report.Results[10].Message);
         Assert.Single(_fake.Processes.Closed);
         Assert.Equal([TSPrintExe], _fake.Processes.Started);
         Assert.True(_fake.Processes.TSPrintRunning);
@@ -314,7 +314,7 @@ public sealed class LabelTests : IDisposable
         var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
-        Assert.Contains("já imprime", report.Results[9].Message);
+        Assert.Contains("já imprime", report.Results[10].Message);
         Assert.Equal(0, _fake.TSPrintConfigWrites);
         Assert.Empty(_fake.Processes.Closed);
         Assert.Empty(_fake.Processes.Started);
@@ -355,8 +355,8 @@ public sealed class LabelTests : IDisposable
         var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Equal(9, report.FailedStepIndex);
-        Assert.Contains("Feche o TSPrint", report.Results[9].Message);
+        Assert.Equal(10, report.FailedStepIndex);
+        Assert.Contains("Feche o TSPrint", report.Results[10].Message);
         Assert.Equal(0, _fake.TSPrintConfigWrites);
         Assert.Empty(_fake.Raw.Sent);
     }
@@ -370,7 +370,7 @@ public sealed class LabelTests : IDisposable
         var report = await RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()));
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Contains("Nada foi alterado", report.Results[9].Message);
+        Assert.Contains("Nada foi alterado", report.Results[10].Message);
         Assert.Equal(TSPrintConfig, _fake.TSPrintPrinterConfig);
         Assert.True(_fake.Processes.TSPrintRunning);
     }
@@ -433,6 +433,69 @@ public sealed class LabelTests : IDisposable
         var strange = FakePreferences.NewZebraDevMode(Zd230, 508, 254, interpolation: 9);   // fora do esperado
         Assert.False(ZebraGraphics.IsKnownLayout(strange));
         Assert.Equal(strange, ZebraGraphics.WithStandard(strange));
+    }
+
+    private const string Tlp2844 = "ZDesigner TLP 2844";
+
+    private static byte[] TlpDevMode(string file) =>
+        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Data", file));
+
+    [Fact]
+    public void Tlp2844_goes_to_darkness_13_dithering_none_and_rotation_with_the_crc_the_driver_accepts()
+    {
+        var factory = TlpDevMode("tlp2844-padrao-de-fabrica.devmode");
+        Assert.True(ZebraGraphics.IsKnownLayout(factory));
+        Assert.False(ZebraGraphics.IsStandard(factory));
+        Assert.Equal("darkness 7, dithering Smooth, sem rotação 180°", ZebraGraphics.Describe(factory));
+
+        var fixedMode = ZebraGraphics.WithStandard(factory);
+
+        Assert.True(ZebraGraphics.IsStandard(fixedMode));
+        Assert.Equal(13u, BitConverter.ToUInt32(fixedMode, 1252));
+        Assert.Equal(3u, BitConverter.ToUInt32(fixedMode, 1488));
+        Assert.Equal(1, fixedMode[230]);
+        // CRC conferido no driver real: com este valor a tela mostrou Darkness 13, None e rotate 180°.
+        Assert.Equal(0xC42Cu, BitConverter.ToUInt32(fixedMode, 898));
+        var changed = Enumerable.Range(0, factory.Length).Where(i => factory[i] != fixedMode[i]).ToArray();
+        Assert.Equal([230, 898, 899, 1252, 1488], changed);
+    }
+
+    [Fact]
+    public void Tlp2844_already_adjusted_on_screen_is_left_as_is()
+    {
+        var adjusted = TlpDevMode("tlp2844-ajustada-na-tela.devmode");
+
+        Assert.True(ZebraGraphics.IsStandard(adjusted));
+        Assert.Equal(adjusted, ZebraGraphics.WithStandard(adjusted));
+        Assert.Equal("darkness 13, dithering None, rotação 180°", ZebraGraphics.Describe(adjusted));
+    }
+
+    [Fact]
+    public void Crc_matches_the_ccitt_reference_value() =>
+        Assert.Equal(0x31C3, ZebraGraphics.Crc16Ccitt("123456789"u8));   // CRC-16/XMODEM
+
+    [Fact]
+    public void Other_model_with_the_same_driver_family_is_not_touched()
+    {
+        var other = TlpDevMode("tlp2844-padrao-de-fabrica.devmode");
+        System.Text.Encoding.ASCII.GetBytes("ZDesigner LP 2824\0\0").CopyTo(other, 1700);
+
+        Assert.False(ZebraGraphics.IsKnownLayout(other));
+        Assert.Equal(other, ZebraGraphics.WithStandard(other));
+    }
+
+    [Fact]
+    public async Task Misconfigured_tlp2844_gets_size_and_wp_options()
+    {
+        _fake.Printers.Add(Printer(Tlp2844, Tlp2844));
+        _fake.Preferences.DevModes[Tlp2844] = TlpDevMode("tlp2844-padrao-de-fabrica.devmode");   // 76,2 × 50,8 mm
+
+        var report = await RunAsync(LabelSequences.CreateMisconfigured(_fake.Build()));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        var saved = _fake.Preferences.DevModes[Tlp2844];
+        Assert.True(CheckLabelSizeProcedure.IsStandard(saved));
+        Assert.Contains("darkness 13, dithering None, rotação 180°", report.Results[2].Message);
     }
 
     [Fact]
@@ -570,8 +633,8 @@ public sealed class LabelTests : IDisposable
             .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
 
         Assert.Equal(SequenceOutcome.Failed, report.Outcome);
-        Assert.Equal(7, report.FailedStepIndex);
-        Assert.Contains("não foi limpa", report.Results[7].Message);
+        Assert.Equal(8, report.FailedStepIndex);
+        Assert.Contains("não foi limpa", report.Results[8].Message);
         Assert.Equal(ServiceState.Running, _fake.Services.Spooler!.State);
         Assert.Empty(_fake.Raw.Sent);   // não manda etiqueta de teste para fila travada
     }
@@ -598,6 +661,84 @@ public sealed class LabelTests : IDisposable
         Assert.Equal(["stop Spooler", "start Spooler"], _fake.Services.Calls);     // resolveu já no primeiro reinício
         Assert.Single(_fake.Jobs, j => j.PrinterName == brother);
         Assert.Contains(_events.OfType<LogEvent>(), e => e.Message.Contains("1 reconhecido(s) pelo número do documento"));
+    }
+
+    // ---------- Etiquetadora compartilhada por outro computador ----------
+
+    private const string SharedTlp = @"\\192.168.0.107\ZDesigner TLP 2844";
+
+    private void AddSharedTlpWithStuckQueue()
+    {
+        _fake.Printers.Add(new InstalledPrinter(SharedTlp, Tlp2844, "IP_192.168.0.107", false, true,
+            ServerName: @"\\192.168.0.107", ShareName: "ZDesigner TLP 2844"));
+        _fake.Queue.InstalledPrinters.Add(SharedTlp);
+        _fake.Queue.JobsSurviveCancel = true;   // cancelar e reiniciar o serviço daqui não limpa
+        _fake.Jobs.Add(new PrintJobInfo(SharedTlp, PrintJobStatus.Error, _fake.Now, 4));
+        _fake.Preferences.DevModes[SharedTlp] = TlpDevMode("tlp2844-padrao-de-fabrica.devmode");
+    }
+
+    private Task<SequenceReport> RunNotPrintingAsync() =>
+        new SequenceRunner(isElevated: false, new RecordingElevatedRunner())
+            .RunAsync(LabelSequences.CreateNotPrinting(_fake.Build()), new DelegateRunEventSink(_events.Add));
+
+    [Fact]
+    public async Task Shared_label_printer_whose_queue_does_not_clear_is_removed_and_connected_again()
+    {
+        AddSharedTlpWithStuckQueue();
+        _fake.Connections.Reachable.Add(@"\\192.168.0.107|ZDesigner TLP 2844");
+
+        var report = await RunNotPrintingAsync();
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Equal(["remove " + SharedTlp, "add " + SharedTlp, "default " + SharedTlp], _fake.Connections.Calls);
+        Assert.Empty(_fake.Jobs);
+        Assert.Contains("Reconectada", report.Results[7].Message);
+        // as preferências do usuário somem com a conexão: a etiquetadora volta para o padrão WP
+        Assert.True(CheckLabelSizeProcedure.IsStandard(_fake.Preferences.DevModes[SharedTlp]));
+    }
+
+    [Fact]
+    public async Task Shared_printer_is_not_removed_when_the_computer_sharing_it_does_not_answer()
+    {
+        AddSharedTlpWithStuckQueue();
+
+        var report = await RunNotPrintingAsync();
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Equal(7, report.FailedStepIndex);
+        Assert.Contains("não foi removida", report.Results[7].Message);
+        Assert.Empty(_fake.Connections.Calls);
+        Assert.Contains(_fake.Printers, p => p.Name == SharedTlp);
+    }
+
+    [Fact]
+    public async Task Failure_to_connect_again_says_where_to_connect_by_hand()
+    {
+        AddSharedTlpWithStuckQueue();
+        _fake.Connections.Reachable.Add(@"\\192.168.0.107|ZDesigner TLP 2844");
+        _fake.Connections.AddFails = true;
+
+        var report = await RunNotPrintingAsync();
+
+        Assert.Equal(SequenceOutcome.Failed, report.Outcome);
+        Assert.Equal(7, report.FailedStepIndex);
+        Assert.Equal(["remove " + SharedTlp, "add " + SharedTlp, "add " + SharedTlp], _fake.Connections.Calls);
+        Assert.Contains(SharedTlp, report.Results[7].ErrorDetail);
+    }
+
+    [Fact]
+    public async Task Local_printer_queue_that_does_not_clear_is_never_reconnected()
+    {
+        _fake.Printers.Add(Printer(Zd230, Zd230));
+        _fake.Queue.InstalledPrinters.Add(Zd230);
+        _fake.Queue.JobsSurviveCancel = true;
+        _fake.Jobs.Add(new PrintJobInfo(Zd230, PrintJobStatus.Error, _fake.Now));
+
+        var report = await RunNotPrintingAsync();
+
+        Assert.Equal(ProcedureOutcome.NotNeeded, report.Results[7].Outcome);
+        Assert.Equal(8, report.FailedStepIndex);
+        Assert.Empty(_fake.Connections.Calls);
     }
 
     [Fact]

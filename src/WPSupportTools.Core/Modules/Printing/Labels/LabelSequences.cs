@@ -34,6 +34,8 @@ public static class LabelSequences
             new ConditionalProcedure(new ClearSpoolFilesProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new StartPrintSpoolerProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new CancelStuckJobsProcedure(platform, afterRestart: true), PrintingFixSequence.OnlyIfQueueStuck),
+            // Compartilhada por outro computador e a fila não limpou: exclui e conecta de novo, como o técnico.
+            new ConditionalProcedure(new ReconnectSharedPrinterProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConditionalProcedure(new RecheckPrintQueueProcedure(platform), PrintingFixSequence.OnlyIfQueueStuck),
             new ConfigureTSPrintServerProcedure(platform),
             new SelectTSPrintLabelPrinterProcedure(platform),

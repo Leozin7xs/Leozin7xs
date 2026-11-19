@@ -31,6 +31,15 @@ public sealed class LocateLabelPrinterProcedure(PlatformServices platform) : IPr
             _ = listing.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
             return ProcedureResult.Fail(SpoolerNotRespondingMessage);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Com a fila travada o Windows às vezes dá erro em vez de demorar (ex.: ManagementException do WMI).
+            context.Log($"Erro do Windows ao listar as impressoras: {ex.GetType().Name}: {ex.Message}");
+            return ProcedureResult.Fail(
+                "O Windows deu erro ao listar as impressoras: o serviço de impressão parece travado. " +
+                "Volte ao início, use \"Impressora A4 não está imprimindo\" para reiniciá-lo e depois tente a etiquetadora de novo.",
+                $"{ex.GetType().Name}: {ex.Message}");
+        }
 
         foreach (var zebra in printers.Where(p => ZebraModel.LanguageOf(p.DriverName) is not null))
             context.Log($"Zebra instalada: '{zebra.Name}' (driver {zebra.DriverName}, porta {zebra.PortName}, " +

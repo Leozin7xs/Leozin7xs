@@ -24,7 +24,7 @@ internal sealed class WmiPrinterCatalog : IPrinterCatalog
     {
         using var searcher = new ManagementObjectSearcher(
             new ManagementScope(@"root\cimv2"),
-            new ObjectQuery("SELECT Name, DriverName, PortName, WorkOffline, PrinterStatus, ExtendedPrinterStatus, DetectedErrorState, Default FROM Win32_Printer"),
+            new ObjectQuery("SELECT Name, DriverName, PortName, WorkOffline, PrinterStatus, ExtendedPrinterStatus, DetectedErrorState, Default, Network, ServerName, ShareName FROM Win32_Printer"),
             new System.Management.EnumerationOptions { Timeout = TimeSpan.FromSeconds(15), ReturnImmediately = true, Rewindable = false });
         using var collection = searcher.Get();
 
@@ -47,7 +47,9 @@ internal sealed class WmiPrinterCatalog : IPrinterCatalog
                     offline,
                     item["Default"] is true,
                     ProblemOf(error),
-                    usbPorts.TryGetValue(item["PortName"] as string ?? "", out var linked) ? linked : null));
+                    usbPorts.TryGetValue(item["PortName"] as string ?? "", out var linked) ? linked : null,
+                    item["Network"] is true ? item["ServerName"] as string : null,
+                    item["Network"] is true ? item["ShareName"] as string : null));
             }
         }
 

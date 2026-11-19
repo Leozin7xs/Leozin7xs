@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.7.0):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> **Status atual (v0.7.1):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
 > (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
 > conferem o TSPrint dele em vez do TSPrint antigo.
 
@@ -54,7 +54,8 @@ Procedimento manual da WP, definido em
 
 ```
 1. Ver se a fila de impressão está travada (documento com erro).
-   Se SIM → cancelar os documentos da impressora travada, net stop / net start spooler, conferir se destravou.
+   Se SIM → cancelar os documentos da impressora travada, net stop / net start spooler; se for compartilhada
+            por outro computador e a fila não limpou, excluir e conectar de novo; conferir se destravou.
    Sempre → a impressora A4 do TSPrint (pasta "root") existe e está funcionando? Se não, e houver
             exatamente uma outra funcionando, trocar no TSPrint.
    Se NÃO estava travada → ver se o TSPrint está aberto; se não estiver, abrir.
@@ -68,11 +69,12 @@ Procedimento manual da WP, definido em
 | 4 | Limpando arquivos da fila | `printing.clear-spool-files` | fila travada | sim |
 | 5 | Iniciando serviço de impressão | `printing.start-spooler` | fila travada (**sempre**, se o spooler foi parado) | sim |
 | 6 | Cancelando documentos restantes | `printing.cancel-remaining-jobs` | fila travada | sim |
-| 7 | Conferindo se a fila destravou | `printing.recheck-queue` | fila travada | não |
-| 8 | Conferindo a conexão do TSPrint | `printing.tsprint-server` | sempre | não |
-| 9 | Conferindo a impressora A4 no TSPrint | `printing.tsprint-printer` | sempre | não |
-| 10 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
-| 11 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
+| 7 | Reconectando impressora compartilhada | `printing.reconnect-shared` | fila travada, ainda com documento e impressora compartilhada por outro computador | não |
+| 8 | Conferindo se a fila destravou | `printing.recheck-queue` | fila travada | não |
+| 9 | Conferindo a conexão do TSPrint | `printing.tsprint-server` | sempre | não |
+| 10 | Conferindo a impressora A4 no TSPrint | `printing.tsprint-printer` | sempre | não |
+| 11 | Verificando o TSPrint | `printing.check-tsprint` | fila normal | não |
+| 12 | Abrindo o TSPrint | `printing.start-tsprint` | fila normal e TSPrint fechado | não |
 
 **Conexão do TSPrint (padrão WP, igual em todas as unidades):** servidor **Compartilhado**, 20 processos,
 intervalo 2 s, URL `http://imp.unilab.app.br/tsprint`, código ADM `01451`, porta 3080 (`TSPrintServerSettings`).
@@ -118,6 +120,11 @@ intervenção. Documento só demorando (sem erro) não conta. Spooler parado ou 
 - **Cancelar restantes:** documentos presos em "excluindo" podem voltar quando o spooler reinicia; são cancelados de novo.
   Se mesmo assim sobrar documento, faz como o técnico (que reinicia de novo pelo services.msc): para o serviço, limpa os
   arquivos desses documentos, religa e cancela mais uma vez — no mesmo pedido de administrador.
+- **Reconectar compartilhada** (ex.: "ZDesigner TLP 2844 em 192.168.0.107"): só se a fila ainda não limpou e a
+  impressora é uma conexão com outro computador. Como o técnico faz: exclui a conexão e conecta de novo no mesmo
+  computador e compartilhamento. Antes de excluir confere que esse computador responde e ainda compartilha a
+  impressora; se não, não mexe em nada. Só a conexão do usuário (sem administrador); se era a padrão, volta a ser;
+  Zebra volta para o tamanho e as opções padrão.
 - **Conferir fila:** a fila das impressoras tratadas tem que ficar **vazia**; se sobrar qualquer documento,
   a correção falha e orienta chamar o técnico (spooler ligado).
 - **TSPrint:** só verifica o processo `TSPrint` da sessão do usuário; só abre o executável do caminho fixo
@@ -210,8 +217,14 @@ Tipo de gráfico **ZIP** (o driver vem em Foto). Ficam no bloco interno das pref
 no ZD220 ZPL e só são alteradas quando o bloco tem exatamente esse formato (assinatura "NICELbl", 13482 bytes);
 outro driver fica como está. Também é aplicado pelo "Instalar o UniLab" quando ele encontra a Zebra.
 
-**Ainda não feito:** conferir/corrigir escuridão, velocidade, modo e offsets (depende da
-"configuração modelo" — ver docs). Comandos de calibração a validar com cada modelo.
+**TLP 2844** (driver EPL "ZDesigner TLP 2844"): Darkness **13**, Dithering **None** e **rotate 180°** marcado,
+além do tamanho. Darkness e Dithering ficam numa área do bloco interno protegida por um CRC-16; o app recalcula o
+CRC (sem ele o driver descarta as opções). Conferido no driver real: a tela de preferências mostra os valores
+gravados pelo app. Só é alterado com o bloco exatamente nesse formato (1533 bytes, modelo "ZDesigner TLP 2844").
+
+**Ainda não feito:** conferir/corrigir escuridão da ZPL, velocidade, modo e offsets (depende da "configuração
+modelo" — ver docs). GC420t: opções não mapeadas (o driver travou ao abrir as preferências no PC de teste).
+Comandos de calibração a validar com cada modelo.
 
 ## Elevação de privilégios (serviço ou UAC)
 

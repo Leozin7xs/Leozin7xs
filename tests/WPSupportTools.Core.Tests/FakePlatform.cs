@@ -23,10 +23,12 @@ internal sealed class FakePlatform : IDisposable
     public FakePlatform()
     {
         Unilab.Processes = Processes;
+        Connections = new FakeConnections(this);
         Directory.CreateDirectory(SpoolFolder);
         ConfiguredSpoolFolder = SpoolFolder;
         Modules.Printing.PrintingConstants.SpoolerSettleDelay = TimeSpan.Zero;
         Modules.Printing.Correction.Procedures.ClearSpoolFilesProcedure.LockedFileGracePeriod = TimeSpan.Zero;
+        Modules.Printing.Correction.Procedures.ReconnectSharedPrinterProcedure.RetryDelay = TimeSpan.Zero;
         Services.OnStart = () =>
         {
             Queue.Unreadable = false;
@@ -43,9 +45,11 @@ internal sealed class FakePlatform : IDisposable
 
     public PlatformServices Build() =>
         new(Services, Queue, Processes, () => Now, new FakeCatalog(this), Preferences, Raw, new FakeSpool(this),
-            new FakeTSPrintConfig(this), Unilab);
+            new FakeTSPrintConfig(this), Unilab, Connections.AsService());
 
     public FakeUnilab Unilab { get; } = new();
+
+    public FakeConnections Connections { get; private set; } = null!;
 
     /// <summary>Conteúdo do geral_cnf.data do TSPrint (null = não existe).</summary>
     public string? TSPrintGeneralConfig { get; set; }
@@ -437,4 +441,47 @@ internal sealed class FakeUnilab : IUnilabSetup
         LegacyDesktop.Clear();
         return moved;
     }
+}
+
+/// <summary>Conexões com impressoras compartilhadas por outro computador.</summary>
+internal sealed class FakeConnections(FakePlatform owner)
+{
+    /// <summary>Compartilhamentos que respondem, no formato "servidor|compartilhamento".</summary>
+    public HashSet<string> Reachable { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<string> Calls { get; } = [];
+    public bool AddFails { get; set; }
+
+    /// <summary>Ao reconectar, a fila local daquela impressora some (o que o técnico consegue fazendo à mão).</summary>
+    public bool ReconnectClearsQueue { get; set; } = true;
+
+    public Platform.IPrinterConnections AsService() => new Service(this);
+
+    private sealed class Service(FakeConnections c) : Platform.IPrinterConnections
+    {
+        public bool IsShared(string server, string shareName, string connectionName) =>
+            c.Reachable.Contains($"{server}|{shareName}");
+
+        public void Remove(string connectionName)
+        {
+            c.Calls.Add("remove " + connectionName);
+            var printer = c.Owner.Printers.First(p => p.Name == connectionName);
+            c.Owner.Printers.Remove(printer);
+            c.Removed[connectionName] = printer;
+            if (c.ReconnectClearsQueue)
+                c.Owner.Jobs.RemoveAll(j => j.PrinterName == connectionName);
+        }
+
+        public void Add(string connectionName)
+        {
+            c.Calls.Add("add " + connectionName);
+            if (c.AddFails)
+                throw new System.ComponentModel.Win32Exception(1801, "Nome de impressora inválido.");
+            c.Owner.Printers.Add(c.Removed[connectionName] with { IsDefault = false });
+        }
+
+        public void SetDefault(string printerName) => c.Calls.Add("default " + printerName);
+    }
+
+    internal FakePlatform Owner => owner;
+    internal Dictionary<string, InstalledPrinter> Removed { get; } = new();
 }

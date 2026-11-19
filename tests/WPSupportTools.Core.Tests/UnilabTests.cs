@@ -292,7 +292,7 @@ public sealed class UnilabTests : IDisposable
 
         Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
         Assert.Equal(Brother, UnilabCloud.PrinterOf(_fake.Unilab.CloudConfig, ["root"]));
-        Assert.Contains("UniLab reaberto", report.Results[8].Message);
+        Assert.Contains("UniLab reaberto", report.Results[9].Message);
         Assert.True(_fake.Processes.UnilabCloudRunning);
         Assert.False(_fake.Processes.TSPrintRunning);                 // o antigo continua desligado
         Assert.DoesNotContain(@"C:\Rede_Unilab\TSPrint\TSPrint.exe", _fake.Processes.Started);
@@ -307,8 +307,8 @@ public sealed class UnilabTests : IDisposable
         var report = await new SequenceRunner(isElevated: false)
             .RunAsync(PrintingFixSequence.Create(_fake.Build()), new DelegateRunEventSink(_ => { }));
 
-        Assert.Equal(7, report.FailedStepIndex);
-        Assert.Contains("Instalar o UniLab", report.Results[7].Message);
+        Assert.Equal(8, report.FailedStepIndex);
+        Assert.Contains("Instalar o UniLab", report.Results[8].Message);
     }
 
     private sealed class ElevatedRecorder : IElevatedStepRunner

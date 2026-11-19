@@ -17,6 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- DEVMODEs reais gravados pelo driver ZDesigner TLP 2844 (impressora de teste, sem dados de unidade). -->
+    <None Include="Data\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\WPSupportTools.Core\WPSupportTools.Core.csproj" />
   </ItemGroup>
 
