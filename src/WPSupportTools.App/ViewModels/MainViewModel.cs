@@ -399,7 +399,7 @@ public sealed class MainViewModel : ObservableObject
         _runLog.RunFinished(sequence, report);
         _usage.RunFinished(_runId, report, report.FailedStepIndex is { } failed && failed < sequence.Steps.Count
             ? sequence.Steps[failed].Id
-            : null);
+            : null, _runLog.Transcript);
         ShowResult(sequence, report);
         IsBusy = false;
     }
@@ -467,7 +467,7 @@ public sealed class MainViewModel : ObservableObject
         if (_sequence is not null)
         {
             _runLog.UserFeedback(_sequence.Id, resolved);
-            _usage.Feedback(_runId, _sequence.Id, resolved);
+            _usage.Feedback(_runId, _sequence.Id, resolved, _runLog.Transcript);
         }
 
         CurrentScreen = resolved ? Screen.Resolved : Screen.Escalated;

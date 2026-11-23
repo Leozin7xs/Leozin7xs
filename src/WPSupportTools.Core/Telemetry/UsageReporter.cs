@@ -119,13 +119,21 @@ public sealed class UsageReporter
     /// <summary>Unidade atual (atualizada quando a funcionária preenche/altera).</summary>
     public UnitInfo? Unit { get; set; }
 
-    public void RunFinished(Guid runId, SequenceReport report, string? failedStepId) =>
+    /// <param name="log">Log do atendimento; só é enviado se ele falhou ou ficou sem permissão.</param>
+    public void RunFinished(Guid runId, SequenceReport report, string? failedStepId, string? log = null)
+    {
+        var outcome = OutcomeName(report.Outcome);
         Record(new UsageEvent(Guid.NewGuid(), runId, UsageEvent.RunType, _now(), Unit?.Laboratory, Unit?.Unit, _pcId,
-            AppInfo.Version, report.SequenceId, OutcomeName(report.Outcome), failedStepId, null));
+            AppInfo.Version, report.SequenceId, outcome, failedStepId, null,
+            outcome is "falhou" or "sem_permissao" ? Clean(log) : null));
+    }
 
-    public void Feedback(Guid runId, string sequenceId, bool resolved) =>
+    /// <param name="log">Log do atendimento; só é enviado se a funcionária respondeu "Não funcionou".</param>
+    public void Feedback(Guid runId, string sequenceId, bool resolved, string? log = null) =>
         Record(new UsageEvent(Guid.NewGuid(), runId, UsageEvent.FeedbackType, _now(), Unit?.Laboratory, Unit?.Unit, _pcId,
-            AppInfo.Version, sequenceId, null, null, resolved));
+            AppInfo.Version, sequenceId, null, null, resolved, resolved ? null : Clean(log)));
+
+    private static string? Clean(string? log) => string.IsNullOrWhiteSpace(log) ? null : LogRedactor.Redact(log);
 
     public static string OutcomeName(SequenceOutcome outcome) => outcome switch
     {
@@ -182,6 +190,12 @@ public sealed class UsageReporter
                 }
 
                 var result = await _transport.SendAsync(json, cancellationToken);
+                if (result == SendResult.Rejected && WithoutLog(json) is { } withoutLog)
+                {
+                    // Banco ainda sem o campo "log" (ou log recusado): o resumo vai sem ele.
+                    _log.Write(LogLevel.Warning, $"Painel: registro com log recusado; reenviando sem o log ({Path.GetFileName(file)}).");
+                    result = await _transport.SendAsync(withoutLog, cancellationToken);
+                }
                 if (result == SendResult.RetryLater)
                     break;
                 if (result == SendResult.Rejected)
@@ -202,6 +216,22 @@ public sealed class UsageReporter
         finally
         {
             _flushLock.Release();
+        }
+    }
+
+    /// <summary>O mesmo registro sem o campo "log", ou null se ele não tinha log.</summary>
+    internal static string? WithoutLog(string json)
+    {
+        try
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(json)?.AsObject();
+            if (node is null || !node.Remove("log"))
+                return null;
+            return node.ToJsonString();
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

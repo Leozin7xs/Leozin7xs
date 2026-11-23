@@ -7,7 +7,8 @@ namespace WPSupportTools.Core.Telemetry;
 
 /// <summary>
 /// Registro de um uso do app, enviado ao painel. Sem dados pessoais: nada de nome de usuário,
-/// nome do computador, documentos ou mensagens de erro detalhadas.
+/// nome do computador ou documentos. Só quando o atendimento falha (ou a funcionária responde
+/// "Não funcionou") vai junto o log daquele atendimento, já limpo por <see cref="LogRedactor"/>.
 /// <list type="bullet">
 ///   <item><c>tipo = "execucao"</c>: o app terminou uma sequência (resultado = concluido / falhou / sem_permissao / simulado).</item>
 ///   <item><c>tipo = "retorno"</c>: a funcionária respondeu "Funcionou" (resolvido = true) ou "Não funcionou" (false).</item>
@@ -26,7 +27,8 @@ public sealed record UsageEvent(
     [property: JsonPropertyName("sequencia")] string SequenceId,
     [property: JsonPropertyName("resultado")] string? Outcome,
     [property: JsonPropertyName("etapa_com_falha")] string? FailedStep,
-    [property: JsonPropertyName("resolvido")] bool? Resolved)
+    [property: JsonPropertyName("resolvido")] bool? Resolved,
+    [property: JsonPropertyName("log"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Log = null)
 {
     public const string RunType = "execucao";
     public const string FeedbackType = "retorno";

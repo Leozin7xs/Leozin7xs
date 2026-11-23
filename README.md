@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.7.2):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> **Status atual (v0.7.3):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
 > (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
 > conferem o TSPrint dele em vez do TSPrint antigo.
 
@@ -285,8 +285,12 @@ gravar lá, fica em `%LOCALAPPDATA%`). Aparece no cabeçalho; "Alterar unidade" 
 | `laboratorio`, `unidade` | `Widal`, `Menino Deus` | preenchidos no primeiro acesso |
 | `pc_id` | `3f2a…` (16 caracteres) | resumo do MachineGuid — conta PCs, não identifica o nome do PC |
 | `sequencia`, `versao`, `ocorrido_em`, `id` | | |
+| `log` | linhas do atendimento | **só** em `execucao` com `falhou`/`sem_permissao` ou `retorno` com `resolvido = false` (v0.7.3) |
 
-**Não vai:** nome de usuário, nome do computador, nomes de documentos, mensagens de erro.
+**Não vai:** nome de usuário, nome do computador, nomes de documentos. O `log` (só nas falhas) é limpo antes de sair do PC
+(`LogRedactor`): sai a licença do UniLab, usuários RDP/UniLab e o nome do usuário do Windows nos caminhos; senha e token
+nunca entram no log. Limite de 16000 caracteres (começo e fim). Se o banco ainda não tiver o campo `log`
+(migração `20261123000000_log_das_falhas.sql` do painel), o registro é reenviado sem ele.
 
 Os registros ficam em `%LOCALAPPDATA%\WPSupportTools\Uso\Pendentes\` e são enviados quando o painel estiver
 configurado (`TelemetryConstants.Endpoint`/`PublicKey`). **Desde a v0.6.1 vão para o Supabase** (projeto `wp-support-tools`; painel em https://wp-support-tools-painel.vercel.app); os

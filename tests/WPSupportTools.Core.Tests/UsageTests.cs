@@ -136,6 +136,103 @@ public sealed class UsageTests : IDisposable
             JsonDocument.Parse(json).RootElement.EnumerateObject().Select(p => p.Name));
     }
 
+    // ---------- Log do atendimento (só nas falhas) ----------
+
+    private const string SampleLog =
+        "[14:20:05] [Info] Unidade definida: Endocrimeta — Assis Brasil.\n" +
+        "[14:20:11] [Info] Zebra instalada: 'ZDesigner ZD220-203dpi ZPL' (porta USB001, online).\n" +
+        "[14:20:12] [Info] TSPrint: usuário '01451cendocri21'.\n" +
+        "[14:20:13] [Info] UniLab: 1 processo(s) — C:\\Users\\maria.souza\\AppData\\Local\\Unilab\\Unilab.exe.\n" +
+        "[14:20:14] [Info] Licença @01451fulano21 aplicada; Usuario=fulano.rdp no ini.\n" +
+        "[14:20:35] [Error] Etapa 8/13 [printing.recheck-queue] Conferindo se a fila destravou: FALHA\n";
+
+    [Fact]
+    public async Task Failed_run_sends_its_log_without_license_users_or_windows_user_name()
+    {
+        var reporter = Reporter();
+        reporter.RunFinished(Guid.NewGuid(), Report(SequenceOutcome.Failed, 0), "printing.recheck-queue", SampleLog);
+        await reporter.FlushAsync();
+
+        var log = JsonDocument.Parse(_transport.Sent.Single()).RootElement.GetProperty("log").GetString()!;
+        Assert.Contains("ZDesigner ZD220-203dpi ZPL", log);
+        Assert.Contains("printing.recheck-queue", log);
+        Assert.Contains("[14:20:35]", log);
+        Assert.DoesNotContain("01451cendocri21", log);
+        Assert.DoesNotContain("fulano", log);
+        Assert.DoesNotContain("maria.souza", log);
+        Assert.Contains(@"C:\Users\***\AppData", log);
+    }
+
+    [Fact]
+    public async Task Successful_run_never_sends_the_log()
+    {
+        var reporter = Reporter();
+        reporter.RunFinished(Guid.NewGuid(), Report(SequenceOutcome.Succeeded), null, SampleLog);
+        reporter.Feedback(Guid.NewGuid(), "printing.fix", resolved: true, SampleLog);
+        await reporter.FlushAsync();
+
+        Assert.All(_transport.Sent, json => Assert.False(JsonDocument.Parse(json).RootElement.TryGetProperty("log", out _)));
+    }
+
+    [Fact]
+    public async Task Not_resolved_feedback_sends_the_log()
+    {
+        var reporter = Reporter();
+        reporter.Feedback(Guid.NewGuid(), "printing.fix", resolved: false, SampleLog);
+        await reporter.FlushAsync();
+
+        Assert.Contains("ZD220", JsonDocument.Parse(_transport.Sent.Single()).RootElement.GetProperty("log").GetString());
+    }
+
+    [Fact]
+    public async Task Panel_without_the_log_field_still_gets_the_record_without_the_log()
+    {
+        var reporter = Reporter();
+        reporter.RunFinished(Guid.NewGuid(), Report(SequenceOutcome.Failed, 0), "labels.locate", SampleLog);
+        _transport.Queue.Enqueue(SendResult.Rejected);   // banco ainda sem a coluna "log"
+
+        await reporter.FlushAsync();
+
+        var run = JsonDocument.Parse(_transport.Sent.Single()).RootElement;
+        Assert.False(run.TryGetProperty("log", out _));
+        Assert.Equal("labels.locate", run.GetProperty("etapa_com_falha").GetString());
+        Assert.Empty(reporter.PendingFiles());
+    }
+
+    [Fact]
+    public void Very_long_log_keeps_the_beginning_and_the_end()
+    {
+        var log = "INICIO\n" + new string('x', 50_000) + "\nFIM DA FALHA";
+
+        var redacted = LogRedactor.Redact(log);
+
+        Assert.True(redacted.Length <= LogRedactor.MaxLength);
+        Assert.StartsWith("INICIO", redacted);
+        Assert.EndsWith("FIM DA FALHA", redacted);
+    }
+
+    [Fact]
+    public void Redaction_keeps_printer_names_ports_dates_and_job_numbers()
+    {
+        const string text = "ZDesigner ZD230-203dpi ZPL (2) porta USB001, IP_192.168.0.107, FP00012.SHD, wpst-20261117.log";
+        Assert.Equal(text, LogRedactor.Redact(text));
+    }
+
+    [Fact]
+    public void Run_log_writer_keeps_only_the_current_attendance()
+    {
+        var writer = new RunLogWriter(_log, () => new DateTime(2026, 11, 23, 9, 15, 0));
+        var sequence = new MaintenanceSequence("printing.fix", "Corrigindo…", [FakeProcedure.Ok("teste")]);
+
+        writer.RunStarted(sequence, elevatedProcess: false);
+        writer.Handle(sequence, new LogEvent(LogLevel.Info, "primeiro atendimento"));
+        writer.RunStarted(sequence, elevatedProcess: false);
+        writer.Handle(sequence, new LogEvent(LogLevel.Warning, "segundo atendimento"));
+
+        Assert.DoesNotContain("primeiro", writer.Transcript);
+        Assert.Contains("[09:15:00] [Warning] segundo atendimento", writer.Transcript);
+    }
+
     [Fact]
     public async Task Without_internet_records_stay_saved_and_go_later_in_order()
     {
