@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.7.1):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> **Status atual (v0.7.2):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
 > (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
 > conferem o TSPrint dele em vez do TSPrint antigo.
 
@@ -179,7 +179,7 @@ A atendente informa a **licença** (ex.: `@01451exemplo01`, o usuário do UniLab
   Windows e o atalho do UniLab antigo sai da área de trabalho (atalhos guardados em
   `%LOCALAPPDATA%\WPSupportTools\Backups`).
 - **Depois:** nos PCs com `C:\Rede_Unilab\Unilab\Unilab.exe`, as etapas de TSPrint dos botões de impressora
-  usam o config.json do UniLab (pastas root/etiq) e abrem/reabrem o UniLab, nunca o TSPrint antigo.
+  usam o config.json do UniLab (pastas root/etiq) e nunca abrem o UniLab (se ele estiver fechado, só avisam). Com o UniLab aberto e a configuração precisando mudar, ele é fechado para gravar e reaberto. O TSPrint antigo nunca é aberto.
 
 ## Etiquetadora (botão "Problema na etiquetadora")
 

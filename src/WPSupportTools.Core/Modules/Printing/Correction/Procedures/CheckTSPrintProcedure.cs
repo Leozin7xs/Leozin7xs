@@ -21,8 +21,12 @@ public sealed class CheckTSPrintProcedure(PlatformServices platform) : IProcedur
         if (Unilab.UnilabCloud.IsInstalled(platform))
         {
             // UniLab novo: o TSPrint é o embutido nele.
-            var open = platform.Processes.FindInCurrentSession(Unilab.UnilabCloud.ProcessName)
-                .Any(p => Unilab.ConfigureUnilabProcedure.IsCloud(p.Path));
+            var processes = platform.Processes.FindInCurrentSession(Unilab.UnilabCloud.ProcessName);
+            // Sem acesso ao caminho do executável não dá para separar o novo do antigo: conta como aberto.
+            var open = processes.Any(p => p.Path is null || Unilab.ConfigureUnilabProcedure.IsCloud(p.Path));
+            context.Log(processes.Count == 0
+                ? "UniLab: nenhum processo nesta sessão."
+                : $"UniLab: {processes.Count} processo(s) — {string.Join(", ", processes.Select(p => p.Path ?? "caminho sem acesso").Distinct())}.");
             context.State.Set(PrintingState.TSPrintRunning, open);
             return Task.FromResult(ProcedureResult.Ok(open ? "O UniLab (com o TSPrint) está aberto." : "O UniLab não está aberto."));
         }

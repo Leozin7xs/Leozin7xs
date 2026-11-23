@@ -23,17 +23,10 @@ public sealed class StartTSPrintProcedure(PlatformServices platform, string? exe
     {
         if (Unilab.UnilabCloud.IsInstalled(platform))
         {
-            // UniLab novo: abre o UniLab (o TSPrint antigo fica desligado).
-            platform.Processes.Start(Unilab.UnilabCloud.Executable);
-            var limit = platform.Now() + PrintingConstants.TSPrintStartTimeout;
-            while (platform.Now() < limit)
-            {
-                if (platform.Processes.FindInCurrentSession(Unilab.UnilabCloud.ProcessName)
-                    .Any(p => Unilab.ConfigureUnilabProcedure.IsCloud(p.Path)))
-                    return ProcedureResult.Ok("UniLab aberto (com o TSPrint).");
-                await Task.Delay(500, cancellationToken);
-            }
-            return ProcedureResult.Fail("O UniLab foi aberto, mas não apareceu em execução.");
+            // UniLab novo: o TSPrint é o embutido nele. O app nunca abre o UniLab (é o sistema da unidade; abrir
+            // de novo com ele já aberto cria uma segunda janela). Só avisa.
+            return ProcedureResult.NotNeeded(
+                "O TSPrint fica dentro do UniLab: se o UniLab estiver fechado, abra pelo atalho da área de trabalho.");
         }
 
         if (executablePath is null)

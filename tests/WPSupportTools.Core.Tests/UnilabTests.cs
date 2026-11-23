@@ -299,6 +299,25 @@ public sealed class UnilabTests : IDisposable
     }
 
     [Fact]
+    public async Task A4_button_on_new_unilab_never_opens_the_unilab()
+    {
+        // Caso da Coral: o UniLab já estava aberto e o app abriu outro. O app não abre mais o UniLab.
+        _fake.Processes.ExistingFiles.Add(UnilabCloud.Executable);
+        _fake.Processes.TSPrintRunning = false;
+        _fake.Processes.UnilabCloudRunning = false;
+        _fake.Printers.Add(new InstalledPrinter(Brother, "Brother DCP-T830DW series", "USB001", false, true));
+        _fake.Unilab.CloudConfig = UnilabCloud.Apply(null, License, UnilabCloud.Password(License), [new("root", Brother, true)])!.Json;
+
+        var report = await new SequenceRunner(isElevated: false)
+            .RunAsync(PrintingFixSequence.Create(_fake.Build()), new DelegateRunEventSink(_ => { }));
+
+        Assert.Equal(SequenceOutcome.Succeeded, report.Outcome);
+        Assert.Empty(_fake.Processes.Started);
+        Assert.Equal(ProcedureOutcome.NotNeeded, report.Results[11].Outcome);
+        Assert.Contains("abra pelo atalho", report.Results[11].Message);
+    }
+
+    [Fact]
     public async Task New_unilab_without_license_asks_to_use_the_install_button()
     {
         _fake.Processes.ExistingFiles.Add(UnilabCloud.Executable);
