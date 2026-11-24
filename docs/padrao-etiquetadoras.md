@@ -24,7 +24,7 @@ e ZDesigner ZD230-203dpi ZPL. Os drivers EPL e ZPL têm telas e nomes de campos 
 |---|---|
 | Modo de impressão | **Térmico direto** (Direct thermal) em **todos** os modelos |
 | Velocidade | **sempre a máxima** que o driver permitir |
-| Escuridão | escala até 15 → **13**; escala até 30 → **24** |
+| Escuridão | escala até 15 → **13**; escala até 30 → **26** (ZPL, definido pelo suporte em 24/11) |
 | Tamanho | 50,8 × 25,4 mm (2 × 1 polegadas) |
 
 ---
@@ -108,8 +108,8 @@ que as configurações estão no padrão e a etiqueta continua desconfigurada. M
 | Campo | Valor padrão | Observação |
 |---|---|---|
 | Velocidade | **152 mm/s** (máxima) | |
-| Escuridão | **24** (escala até 30) | |
-| Modo de impressão | **Térmico direto** | |
+| Escuridão | **26** (escala até 30) | o driver vem com 15; era 24 até 24/11 |
+| Modo de impressão | **Térmico direto** | o driver vem com Transferência térmica |
 | Offset Topo | 1 mm | |
 | Offset Esquerda | 1 mm | confirmado |
 | Backfeed | Padrão | |
@@ -129,7 +129,7 @@ que as configurações estão no padrão e a etiqueta continua desconfigurada. M
 > **Atenção:** com Interpolação = Clipart, a **página de teste do Windows não sai** neste modelo, mas a
 > página de teste **do próprio driver** (botão "Página de teste") sai normalmente.
 
-O app corrige essas três opções sozinho. Mapeado em 10/11 no **ZDesigner ZD220-203dpi ZPL** (bloco interno de
+O app corrige sozinho essas três opções, mais Escuridão e Modo de impressão. Mapeado em 10/11 no **ZDesigner ZD220-203dpi ZPL** (bloco interno de
 13482 bytes, assinatura "NICELbl64"), em posições do DEVMODE (inteiros de 4 bytes):
 
 | Posição | Campo | Valores |
@@ -137,6 +137,11 @@ O app corrige essas três opções sozinho. Mapeado em 10/11 no **ZDesigner ZD22
 | 1888 | Interpolação | 0 = Foto … 5 = Clipart (padrão do driver: 0) |
 | 2136 | Modo de transferência | 0 = Impressão direta, 1 = Baixar (com Baixar, Tipo de gráfico fica bloqueado) |
 | 1872 | Tipo de gráfico | 2 = ZIP, 11 = Padrão (com Baixar o driver grava 11) |
+| 1836 | Modo de impressão | 0 = Transferência térmica (padrão do driver), 1 = Térmico direto |
+| 3006 | Escuridão | escala interna 0 … 1000 para a tela 0 … 30: valor = escuridão × 1000 / 30, truncado (15 = 500, 26 = 866) |
+
+Escuridão e Modo de impressão mapeados em 24/11 (sem CRC). O app grava os dois junto com os gráficos; a tela do
+driver mostrou 26 e Térmico direto com os valores gravados direto.
 
 ---
 

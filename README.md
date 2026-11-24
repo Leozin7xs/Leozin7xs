@@ -4,7 +4,7 @@ Ferramenta Windows de primeiro atendimento para as unidades do Grupo WP.
 O funcionário abre o aplicativo, clica em **Corrigir problema de impressão**, e o aplicativo
 executa uma sequência fixa de procedimentos de manutenção, mostrando o progresso passo a passo.
 
-> **Status atual (v0.7.3):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
+> **Status atual (v0.7.4):** impressão da WP (fila + spooler + TSPrint) e botão **"Instalar o UniLab"**
 > (UniLab novo da Uniware, com licença e TSPrint embutido). Nos PCs com o UniLab novo, os botões de impressora
 > conferem o TSPrint dele em vez do TSPrint antigo.
 
@@ -212,17 +212,19 @@ um `.wpst-modelo.json` por Zebra (preferências completas do driver, incluindo o
 modo, offsets e gráficos, mais driver e versão) e uma cópia de reserva do Windows (`printui /Ss`).
 Passo a passo em `docs/padrao-etiquetadoras.md`.
 
-**Opções de gráficos** (ZDesigner ZPL): Interpolação em **Clipart**, Modo de transferência em **Impressão direta** e
-Tipo de gráfico **ZIP** (o driver vem em Foto). Ficam no bloco interno das preferências; as posições foram mapeadas
-no ZD220 ZPL e só são alteradas quando o bloco tem exatamente esse formato (assinatura "NICELbl", 13482 bytes);
-outro driver fica como está. Também é aplicado pelo "Instalar o UniLab" quando ele encontra a Zebra.
+**ZDesigner ZPL** (ZD220/ZD230): em "Opções de impressão", Escuridão **26** e Modo de impressão **Térmico direto**
+(o driver vem com 15 e Transferência térmica). Em "Opções de gráficos", Interpolação em **Clipart**, Modo de
+transferência em **Impressão direta** e Tipo de gráfico **ZIP** (o driver vem em Foto). Tudo fica no bloco interno
+das preferências; as posições foram mapeadas no ZD220 ZPL e só são alteradas quando o bloco tem exatamente esse
+formato (assinatura "NICELbl", 13482 bytes); outro driver fica como está. Conferido no driver real: a tela mostra
+26 e Térmico direto. Também é aplicado pelo "Instalar o UniLab" quando ele encontra a Zebra.
 
 **TLP 2844** (driver EPL "ZDesigner TLP 2844"): Darkness **13**, Dithering **None** e **rotate 180°** marcado,
 além do tamanho. Darkness e Dithering ficam numa área do bloco interno protegida por um CRC-16; o app recalcula o
 CRC (sem ele o driver descarta as opções). Conferido no driver real: a tela de preferências mostra os valores
 gravados pelo app. Só é alterado com o bloco exatamente nesse formato (1533 bytes, modelo "ZDesigner TLP 2844").
 
-**Ainda não feito:** conferir/corrigir escuridão da ZPL, velocidade, modo e offsets (depende da "configuração
+**Ainda não feito:** conferir/corrigir velocidade e offsets da ZPL (depende da "configuração
 modelo" — ver docs). GC420t: opções não mapeadas (o driver travou ao abrir as preferências no PC de teste).
 Comandos de calibração a validar com cada modelo.
 

@@ -7,8 +7,9 @@ namespace WPSupportTools.Core.Modules.Printing.Labels;
 /// Opções de impressão das Zebra guardadas na parte privada do DEVMODE (preferências de impressão), além do
 /// tamanho. Só os layouts de driver mapeados são alterados; qualquer outro volta igual.
 /// <list type="bullet">
-///   <item><b>ZDesigner ZPL</b> (ex.: ZD220/ZD230, NiceLabel, bloco privado de 13482 bytes): "Opções de gráficos"
-///         em Interpolação Clipart, Modo de transferência Impressão direta e Tipo de gráfico ZIP. O driver vem com
+///   <item><b>ZDesigner ZPL</b> (ex.: ZD220/ZD230, NiceLabel, bloco privado de 13482 bytes): "Opções de impressão"
+///         em Escuridão 26 e Modo de impressão Térmico direto (o driver vem com 15 e Transferência térmica);
+///         "Opções de gráficos" em Interpolação Clipart, Modo de transferência Impressão direta e Tipo de gráfico ZIP. O driver vem com
 ///         Interpolação em Foto. Com "Baixar" ele troca o tipo de gráfico para Padrão; por isso os três são gravados
 ///         juntos.</item>
 ///   <item><b>ZDesigner TLP 2844</b> (driver EPL antigo, bloco privado de 1533 bytes): Darkness 13, Dithering None e
@@ -35,10 +36,23 @@ public static class ZebraGraphics
     /// <summary>Modo de transferência de imagem: 0 = Impressão direta, 1 = Baixar.</summary>
     private const int TransferModeOffset = 2136;
 
+    /// <summary>Modo de impressão: 0 = Transferência térmica (padrão do driver), 1 = Térmico direto.</summary>
+    private const int PrintModeOffset = 1836;
+    /// <summary>Escuridão na escala interna do driver: 0 … 1000 para a escala 0 … 30 da tela (15 = 500).</summary>
+    private const int ZplDarknessOffset = 3006;
+
     public const int Clipart = 5;
     public const int DirectPrint = 0;
     public const int Zip = 2;
     private const int GraphicsTypeDefault = 11;
+    public const int DirectThermal = 1;
+    /// <summary>Escuridão padrão WP no ZPL (escala da tela, até 30).</summary>
+    public const int ZplDarkness = 26;
+
+    /// <summary>Escuridão da tela (0 a 30) → valor gravado pelo driver (a tela grava 26 como 866).</summary>
+    internal static uint ZplDarknessValue(int darkness) => (uint)(darkness * 1000 / 30);
+
+    private static int ZplDarknessOnScreen(uint value) => (int)Math.Round(value * 30 / 1000.0);
 
     // ---- ZDesigner TLP 2844 (driver EPL antigo) ----
     private const int TlpDriverExtra = 1533;
@@ -65,7 +79,8 @@ public static class ZebraGraphics
     public static bool IsStandard(byte[] devMode) => LayoutOf(devMode) switch
     {
         Layout.Zpl => Read(devMode, InterpolationOffset) == Clipart && Read(devMode, TransferModeOffset) == DirectPrint &&
-                      Read(devMode, GraphicsTypeOffset) == Zip,
+                      Read(devMode, GraphicsTypeOffset) == Zip && Read(devMode, PrintModeOffset) == DirectThermal &&
+                      ZplDarknessOnScreen(Read(devMode, ZplDarknessOffset)) == ZplDarkness,
         Layout.Tlp2844 => Read(devMode, TlpDarknessOffset) == TlpDarkness &&
                           Read(devMode, TlpDitheringOffset) == TlpDitheringNone && devMode[TlpRotateOffset] == 1,
         _ => true,
@@ -81,6 +96,9 @@ public static class ZebraGraphics
                 BinaryPrimitives.WriteUInt32LittleEndian(copy.AsSpan(InterpolationOffset), Clipart);
                 BinaryPrimitives.WriteUInt32LittleEndian(copy.AsSpan(TransferModeOffset), DirectPrint);
                 BinaryPrimitives.WriteUInt32LittleEndian(copy.AsSpan(GraphicsTypeOffset), Zip);
+                BinaryPrimitives.WriteUInt32LittleEndian(copy.AsSpan(PrintModeOffset), DirectThermal);
+                if (ZplDarknessOnScreen(Read(copy, ZplDarknessOffset)) != ZplDarkness)
+                    BinaryPrimitives.WriteUInt32LittleEndian(copy.AsSpan(ZplDarknessOffset), ZplDarknessValue(ZplDarkness));
                 break;
 
             case Layout.Tlp2844:
@@ -102,7 +120,9 @@ public static class ZebraGraphics
                 var interpolation = Read(devMode, InterpolationOffset);
                 var transfer = Read(devMode, TransferModeOffset);
                 var graphics = Read(devMode, GraphicsTypeOffset);
-                return $"interpolação {(interpolation == Clipart ? "Clipart" : interpolation == 0 ? "Foto" : $"nível {interpolation}")}, " +
+                return $"escuridão {ZplDarknessOnScreen(Read(devMode, ZplDarknessOffset))}, " +
+                       $"{(Read(devMode, PrintModeOffset) == DirectThermal ? "térmico direto" : "transferência térmica")}, " +
+                       $"interpolação {(interpolation == Clipart ? "Clipart" : interpolation == 0 ? "Foto" : $"nível {interpolation}")}, " +
                        $"{(transfer == DirectPrint ? "impressão direta" : "baixar")}, " +
                        $"gráfico {(graphics == Zip ? "ZIP" : graphics == GraphicsTypeDefault ? "Padrão" : graphics.ToString())}";
 
@@ -124,7 +144,8 @@ public static class ZebraGraphics
         var driverExtra = BinaryPrimitives.ReadUInt16LittleEndian(devMode.AsSpan(70));
         if (driverExtra == ZplDriverExtra && devMode.Length >= 220 + ZplDriverExtra &&
             Read(devMode, InterpolationOffset) <= Clipart && Read(devMode, TransferModeOffset) <= 1 &&
-            Read(devMode, GraphicsTypeOffset) <= 32)
+            Read(devMode, GraphicsTypeOffset) <= 32 && Read(devMode, PrintModeOffset) <= 1 &&
+            Read(devMode, ZplDarknessOffset) <= 1000)
             return Layout.Zpl;
 
         if (driverExtra == TlpDriverExtra && devMode.Length == 220 + TlpDriverExtra &&

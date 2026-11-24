@@ -423,6 +423,40 @@ public sealed class LabelTests : IDisposable
     }
 
     [Fact]
+    public void Zd220_zpl_factory_settings_go_to_darkness_26_and_direct_thermal_like_the_screen()
+    {
+        var factory = TlpDevMode("zd220-zpl-padrao-de-fabrica.devmode");
+        var screen = TlpDevMode("zd220-zpl-escuridao-26-termico-direto-na-tela.devmode");
+        Assert.True(ZebraGraphics.IsKnownLayout(factory));
+        Assert.False(ZebraGraphics.IsStandard(factory));
+        Assert.StartsWith("escuridão 15, transferência térmica, interpolação Foto", ZebraGraphics.Describe(factory));
+        Assert.StartsWith("escuridão 26, térmico direto", ZebraGraphics.Describe(screen));
+
+        var fixedMode = ZebraGraphics.WithStandard(factory);
+
+        Assert.True(ZebraGraphics.IsStandard(fixedMode));
+        // Mesmos valores que a tela do driver grava ao escolher 26 e "Térmico direto".
+        Assert.Equal(BitConverter.ToUInt32(screen, 3006), BitConverter.ToUInt32(fixedMode, 3006));
+        Assert.Equal(BitConverter.ToUInt32(screen, 1836), BitConverter.ToUInt32(fixedMode, 1836));
+        Assert.Equal(5u, BitConverter.ToUInt32(fixedMode, 1888));   // Clipart
+        var changed = Enumerable.Range(0, factory.Length).Where(i => factory[i] != fixedMode[i]).ToArray();
+        Assert.Equal([1836, 1888, 3006, 3007], changed);
+    }
+
+    [Fact]
+    public void Zpl_darkness_already_26_keeps_the_driver_value()
+    {
+        var almost = FakePreferences.NewZebraDevMode(Zd230, 508, 254, interpolation: 5, darkness: 867);
+        Assert.True(ZebraGraphics.IsStandard(almost));
+        Assert.Equal(867u, BitConverter.ToUInt32(ZebraGraphics.WithStandard(almost), 3006));
+
+        var light = FakePreferences.NewZebraDevMode(Zd230, 508, 254, interpolation: 5, darkness: 500, printMode: 0);
+        Assert.False(ZebraGraphics.IsStandard(light));
+        Assert.Equal(866u, BitConverter.ToUInt32(ZebraGraphics.WithStandard(light), 3006));
+        Assert.Equal(1u, BitConverter.ToUInt32(ZebraGraphics.WithStandard(light), 1836));
+    }
+
+    [Fact]
     public void Unknown_driver_layout_is_never_touched()
     {
         var other = FakePreferences.NewDevMode(Zd230, 508, 254);   // outro driver: bloco privado diferente

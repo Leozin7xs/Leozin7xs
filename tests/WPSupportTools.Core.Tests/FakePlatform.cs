@@ -194,7 +194,8 @@ internal sealed class FakePreferences : IPrinterPreferences
         return data;
     }
     /// <summary>DEVMODE no layout do ZDesigner ZPL (NiceLabel): bloco privado de 13482 bytes com a assinatura no fim.</summary>
-    public static byte[] NewZebraDevMode(string device, short width, short length, uint interpolation, uint transfer = 0, uint graphicsType = 2)
+    public static byte[] NewZebraDevMode(string device, short width, short length, uint interpolation, uint transfer = 0,
+        uint graphicsType = 2, uint printMode = 1, uint darkness = 866)
     {
         var data = new byte[220 + 13482];
         NewDevMode(device, width, length).AsSpan(0, 220).CopyTo(data);
@@ -203,6 +204,8 @@ internal sealed class FakePreferences : IPrinterPreferences
         BitConverter.GetBytes(interpolation).CopyTo(data, 1888);
         BitConverter.GetBytes(transfer).CopyTo(data, 2136);
         BitConverter.GetBytes(graphicsType).CopyTo(data, 1872);
+        BitConverter.GetBytes(printMode).CopyTo(data, 1836);
+        BitConverter.GetBytes(darkness).CopyTo(data, 3006);
         data[3000] = 0x5A;   // outro dado do driver: deve ser preservado
         return data;
     }
